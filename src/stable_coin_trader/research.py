@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from stable_coin_trader.models import ResearchSignal
 
 
@@ -38,6 +40,13 @@ def load_active_research_signals(
     now: datetime | None = None,
 ) -> list[ResearchSignal]:
     data = _load_json_list(_research_signals_path(path))
-    signals = [ResearchSignal.model_validate(item) for item in data]
+    signals = [_validate_signal(item, index) for index, item in enumerate(data)]
 
     return [signal for signal in signals if not signal.is_expired(now)]
+
+
+def _validate_signal(item: Any, index: int) -> ResearchSignal:
+    try:
+        return ResearchSignal.model_validate(item)
+    except ValidationError as exc:
+        raise ValueError(f"research signal at index {index} is invalid") from exc

@@ -12,7 +12,7 @@
     "direction": "risk_increase",
     "severity": 2,
     "confidence": 0.8,
-    "ttl_seconds": 86400,
-    "summary": "Fixture signal that raises required edge for affected USDC trades."
+    "ttl_seconds": 315360000,
+    "summary": "Long-lived fixture signal that raises required edge for affected USDC trades."
   }
 ]

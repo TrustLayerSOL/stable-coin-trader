@@ -21,26 +21,9 @@ class Ledger:
 
     def initialize(self) -> None:
         with self.connect() as conn:
-            conn.execute(
-                """
-                create table if not exists risk_decisions (
-                    id integer primary key autoincrement,
-                    created_at text not null,
-                    opportunity_id text not null,
-                    venue text not null,
-                    symbol text not null,
-                    side text not null,
-                    size text not null,
-                    limit_price text not null,
-                    approved integer not null,
-                    reason text not null,
-                    min_edge_bps text not null,
-                    requires_human_approval integer not null,
-                    active_signal_ids text not null
-                )
-                """
-            )
+            self._ensure_risk_decisions_schema(conn)
             self._ensure_paper_fills_schema(conn)
+            self._ensure_foreign_keys_valid(conn)
 
     def record_risk_decision(self, decision: RiskDecision) -> int:
         with self.connect() as conn:
@@ -158,6 +141,33 @@ class Ledger:
         if not value.is_finite() or value < 0:
             raise ValueError(f"paper fill {name} must be nonnegative and finite")
 
+    def _ensure_risk_decisions_schema(self, conn: sqlite3.Connection) -> None:
+        if not self._table_exists(conn, "risk_decisions"):
+            self._create_risk_decisions_table(conn)
+            return
+
+        if self._risk_decisions_schema_is_valid(conn):
+            return
+
+        row_count = conn.execute("select count(*) from risk_decisions").fetchone()[0]
+        if row_count:
+            raise RuntimeError(
+                "legacy risk_decisions schema contains rows; "
+                "manual migration is required"
+            )
+
+        if self._table_exists(conn, "paper_fills"):
+            fill_count = conn.execute("select count(*) from paper_fills").fetchone()[0]
+            if fill_count:
+                raise RuntimeError(
+                    "legacy risk_decisions schema cannot be rebuilt while "
+                    "paper_fills contains rows"
+                )
+            conn.execute("drop table paper_fills")
+
+        conn.execute("drop table risk_decisions")
+        self._create_risk_decisions_table(conn)
+
     def _ensure_paper_fills_schema(self, conn: sqlite3.Connection) -> None:
         if not self._table_exists(conn, "paper_fills"):
             self._create_paper_fills_table(conn)
@@ -176,6 +186,31 @@ class Ledger:
         conn.execute("drop table paper_fills")
         self._create_paper_fills_table(conn)
 
+    def _risk_decisions_schema_is_valid(self, conn: sqlite3.Connection) -> bool:
+        expected_columns = {
+            "id": ("integer", 0, 1),
+            "created_at": ("text", 1, 0),
+            "opportunity_id": ("text", 1, 0),
+            "venue": ("text", 1, 0),
+            "symbol": ("text", 1, 0),
+            "side": ("text", 1, 0),
+            "size": ("text", 1, 0),
+            "limit_price": ("text", 1, 0),
+            "approved": ("integer", 1, 0),
+            "reason": ("text", 1, 0),
+            "min_edge_bps": ("text", 1, 0),
+            "requires_human_approval": ("integer", 1, 0),
+            "active_signal_ids": ("text", 1, 0),
+        }
+        columns = {
+            row["name"]: row
+            for row in conn.execute("pragma table_info(risk_decisions)")
+        }
+        return self._columns_match(
+            columns=columns,
+            expected_columns=expected_columns,
+        )
+
     def _paper_fills_schema_is_valid(self, conn: sqlite3.Connection) -> bool:
         expected_columns = {
             "id": ("integer", 0, 1),
@@ -192,6 +227,25 @@ class Ledger:
         columns = {
             row["name"]: row for row in conn.execute("pragma table_info(paper_fills)")
         }
+        if not self._columns_match(
+            columns=columns,
+            expected_columns=expected_columns,
+        ):
+            return False
+
+        foreign_keys = list(conn.execute("pragma foreign_key_list(paper_fills)"))
+        return any(
+            row["from"] == "risk_decision_id"
+            and row["table"] == "risk_decisions"
+            and row["to"] == "id"
+            for row in foreign_keys
+        )
+
+    def _columns_match(
+        self,
+        columns: dict[str, sqlite3.Row],
+        expected_columns: dict[str, tuple[str, int, int]],
+    ) -> bool:
         if set(columns) != set(expected_columns):
             return False
 
@@ -205,14 +259,12 @@ class Ledger:
                 return False
             if int(column["pk"]) != expected_pk:
                 return False
+        return True
 
-        foreign_keys = list(conn.execute("pragma foreign_key_list(paper_fills)"))
-        return any(
-            row["from"] == "risk_decision_id"
-            and row["table"] == "risk_decisions"
-            and row["to"] == "id"
-            for row in foreign_keys
-        )
+    def _ensure_foreign_keys_valid(self, conn: sqlite3.Connection) -> None:
+        violations = list(conn.execute("pragma foreign_key_check"))
+        if violations:
+            raise RuntimeError("ledger contains foreign key violations")
 
     def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
         row = conn.execute(
@@ -224,6 +276,27 @@ class Ledger:
             (table_name,),
         ).fetchone()
         return row is not None
+
+    def _create_risk_decisions_table(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            create table risk_decisions (
+                id integer primary key autoincrement,
+                created_at text not null,
+                opportunity_id text not null,
+                venue text not null,
+                symbol text not null,
+                side text not null,
+                size text not null,
+                limit_price text not null,
+                approved integer not null,
+                reason text not null,
+                min_edge_bps text not null,
+                requires_human_approval integer not null,
+                active_signal_ids text not null
+            )
+            """
+        )
 
     def _create_paper_fills_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(

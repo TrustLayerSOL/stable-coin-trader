@@ -1,8 +1,8 @@
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from stable_coin_trader.research import load_active_research_signals
 
@@ -109,12 +109,18 @@ def test_load_active_research_signals_treats_naive_now_as_utc(tmp_path) -> None:
     assert [signal.id for signal in active] == ["naive-now"]
 
 
-def test_load_shipped_research_signals_fixture() -> None:
-    path = "data/fixtures/research_signals.json"
+def test_load_shipped_research_signals_fixture(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "data"
+        / "fixtures"
+        / "research_signals.json"
+    )
 
     active = load_active_research_signals(
         path,
-        now=datetime(2026, 5, 13, 12, 30, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 15, 12, 30, tzinfo=timezone.utc),
     )
 
     assert [signal.id for signal in active] == ["fixture-soft-warning"]
@@ -157,5 +163,19 @@ def test_load_active_research_signals_rejects_invalid_signal(tmp_path) -> None:
     path = tmp_path / "signals.json"
     write_signals(path, [signal_payload(direction="buy_now")])
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError, match="index 0"):
+        load_active_research_signals(path)
+
+
+def test_load_active_research_signals_reports_invalid_signal_index(tmp_path) -> None:
+    path = tmp_path / "signals.json"
+    write_signals(
+        path,
+        [
+            signal_payload(id="valid"),
+            signal_payload(id="invalid", confidence=2),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="index 1"):
         load_active_research_signals(path)
