@@ -137,10 +137,15 @@ def test_risk_engine_rejects_order_above_max_order() -> None:
 
 def test_risk_engine_rejects_order_above_max_position() -> None:
     engine = RiskEngine(make_config(max_order_usd="1000", max_position_usd="1000"))
-    opportunity = make_opportunity(size=Decimal("1001"))
+    opportunity = make_opportunity()
     trade = make_trade(opportunity)
 
-    decision = engine.evaluate(trade=trade, opportunity=opportunity, signals=[])
+    decision = engine.evaluate(
+        trade=trade,
+        opportunity=opportunity,
+        signals=[],
+        current_position_usd=Decimal("1"),
+    )
 
     assert decision.approved is False
     assert decision.reason == "order exceeds max position size"
@@ -225,14 +230,14 @@ def test_risk_increase_signals_scope_by_base_asset_or_trade_venue() -> None:
     assert decision.active_signal_ids == ["asset-a", "venue-b"]
 
 
-def test_neutral_and_risk_decrease_signals_are_ignored_for_tightening() -> None:
+def test_neutral_and_risk_decrease_signals_without_review_are_ignored_for_tightening() -> None:
     engine = RiskEngine(make_config())
     opportunity = make_opportunity()
     trade = make_trade(opportunity)
     neutral_signal = make_signal(
         id="neutral",
         direction="neutral",
-        human_review_required=True,
+        human_review_required=False,
     )
     decrease_signal = make_signal(
         id="decrease",
@@ -254,7 +259,51 @@ def test_neutral_and_risk_decrease_signals_are_ignored_for_tightening() -> None:
     assert decision.active_signal_ids == []
 
 
-def test_human_review_blocks_only_when_signal_is_scoped_risk_increase() -> None:
+def test_human_review_blocks_when_scoped_even_if_signal_is_neutral() -> None:
+    engine = RiskEngine(make_config())
+    opportunity = make_opportunity()
+    trade = make_trade(opportunity)
+    neutral_signal = make_signal(
+        id="neutral-review",
+        direction="neutral",
+        human_review_required=True,
+    )
+
+    decision = engine.evaluate(
+        trade=trade,
+        opportunity=opportunity,
+        signals=[neutral_signal],
+    )
+
+    assert decision.approved is False
+    assert decision.reason == "human review required by research signal"
+    assert decision.requires_human_approval is True
+    assert decision.active_signal_ids == ["neutral-review"]
+
+
+def test_human_review_blocks_when_signal_scopes_to_opposite_opportunity_venue() -> None:
+    engine = RiskEngine(make_config())
+    opportunity = make_opportunity()
+    trade = make_trade(opportunity)
+    sell_venue_signal = make_signal(
+        id="sell-venue-review",
+        affected_assets=["USDT"],
+        affected_venues=[opportunity.sell_venue],
+        human_review_required=True,
+    )
+
+    decision = engine.evaluate(
+        trade=trade,
+        opportunity=opportunity,
+        signals=[sell_venue_signal],
+    )
+
+    assert decision.approved is False
+    assert decision.requires_human_approval is True
+    assert decision.active_signal_ids == ["sell-venue-review"]
+
+
+def test_human_review_ignores_unscoped_signal() -> None:
     engine = RiskEngine(make_config())
     opportunity = make_opportunity()
     trade = make_trade(opportunity)
@@ -267,6 +316,8 @@ def test_human_review_blocks_only_when_signal_is_scoped_risk_increase() -> None:
     neutral_signal = make_signal(
         id="neutral-review",
         direction="neutral",
+        affected_assets=["USDT"],
+        affected_venues=["gemini"],
         human_review_required=True,
     )
 
@@ -279,6 +330,52 @@ def test_human_review_blocks_only_when_signal_is_scoped_risk_increase() -> None:
     assert decision.approved is True
     assert decision.requires_human_approval is False
     assert decision.active_signal_ids == []
+
+
+def test_risk_increase_signal_scopes_to_opposite_opportunity_venue() -> None:
+    engine = RiskEngine(make_config())
+    opportunity = make_opportunity(net_edge_case="tight")
+    trade = make_trade(opportunity)
+    sell_venue_signal = make_signal(
+        id="coinbase-risk",
+        affected_assets=["USDT"],
+        affected_venues=[opportunity.sell_venue],
+        severity=3,
+        confidence=1.0,
+        source_quality=1.0,
+    )
+
+    decision = engine.evaluate(
+        trade=trade,
+        opportunity=opportunity,
+        signals=[sell_venue_signal],
+    )
+
+    assert decision.approved is False
+    assert decision.reason == "net edge below minimum"
+    assert decision.min_edge_bps == Decimal("5.5")
+    assert decision.active_signal_ids == ["coinbase-risk"]
+
+
+@pytest.mark.parametrize(
+    "opportunity_overrides",
+    [
+        {"symbol": "USDT/USD"},
+        {"buy_venue": "gemini"},
+        {"sell_venue": "gemini"},
+    ],
+)
+def test_risk_engine_rejects_unconfigured_trading_universe(
+    opportunity_overrides: dict[str, object],
+) -> None:
+    engine = RiskEngine(make_config())
+    opportunity = make_opportunity(**opportunity_overrides)
+    trade = make_trade(opportunity)
+
+    decision = engine.evaluate(trade=trade, opportunity=opportunity, signals=[])
+
+    assert decision.approved is False
+    assert decision.reason == "trade outside configured universe"
 
 
 @pytest.mark.parametrize(
