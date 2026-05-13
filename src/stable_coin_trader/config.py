@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
 from decimal import Decimal
-from os import PathLike
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -46,11 +46,11 @@ class BotConfig(BaseModel):
     )
     @classmethod
     def validate_non_blank_path(cls, value: Any) -> Any:
-        if isinstance(value, (str, PathLike)):
-            stripped = str(value).strip()
+        if isinstance(value, (str, os.PathLike)):
+            stripped = os.fspath(value).strip()
             if not stripped:
                 raise ValueError("path cannot be blank")
-            if Path(stripped) == Path("."):
+            if os.path.normpath(stripped) == ".":
                 raise ValueError("path cannot be the current directory")
             value = stripped
 
@@ -63,6 +63,6 @@ class BotConfig(BaseModel):
         return self
 
 
-def load_config(path: str | PathLike[str]) -> BotConfig:
+def load_config(path: str | os.PathLike[str]) -> BotConfig:
     data: Any = json.loads(Path(path).read_text(encoding="utf-8"))
     return BotConfig.model_validate(data)

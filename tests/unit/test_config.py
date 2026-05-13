@@ -1,11 +1,17 @@
 import json
 from decimal import Decimal
+from os import PathLike
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from stable_coin_trader.config import BotConfig, load_config
+
+
+class CurrentDirectoryPathLike(PathLike[str]):
+    def __fspath__(self) -> str:
+        return "."
 
 
 def valid_config_data(tmp_path) -> dict[str, object]:
@@ -98,28 +104,37 @@ def test_config_rejects_blank_symbols_and_venues(tmp_path, field, value) -> None
         ("ledger_path", "\t\n"),
         ("ledger_path", "."),
         ("ledger_path", "./"),
+        ("ledger_path", "runtime/.."),
+        ("ledger_path", "./runtime/.."),
         ("ledger_path", Path(".")),
         ("ledger_path", Path(" ")),
         ("ledger_path", Path("\t\n")),
+        ("ledger_path", CurrentDirectoryPathLike()),
         ("market_data_path", ""),
         ("market_data_path", " "),
         ("market_data_path", "\t\n"),
         ("market_data_path", "."),
         ("market_data_path", "./"),
+        ("market_data_path", "runtime/.."),
+        ("market_data_path", "./runtime/.."),
         ("market_data_path", Path(".")),
         ("market_data_path", Path(" ")),
         ("market_data_path", Path("\t\n")),
+        ("market_data_path", CurrentDirectoryPathLike()),
         ("research_signals_path", ""),
         ("research_signals_path", " "),
         ("research_signals_path", "\t\n"),
         ("research_signals_path", "."),
         ("research_signals_path", "./"),
+        ("research_signals_path", "runtime/.."),
+        ("research_signals_path", "./runtime/.."),
         ("research_signals_path", Path(".")),
         ("research_signals_path", Path(" ")),
         ("research_signals_path", Path("\t\n")),
+        ("research_signals_path", CurrentDirectoryPathLike()),
     ],
 )
-def test_config_rejects_blank_paths(tmp_path, field, value) -> None:
+def test_config_rejects_invalid_paths(tmp_path, field, value) -> None:
     data = valid_config_data(tmp_path) | {field: value}
 
     with pytest.raises(ValidationError):
