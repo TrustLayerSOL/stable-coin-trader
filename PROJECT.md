@@ -8,7 +8,12 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: implementation plan written and pending execution choice.
+Current phase: Task 10 / one-cycle paper engine hardening on branch
+`implementation/core-skeleton-paper-loop`.
+
+The near-term architecture remains phase 2 first: deterministic stablecoin
+spread paper trading, followed later by the phase 3 research/news layer after
+the core loop is proven.
 
 Completed:
 
@@ -19,13 +24,29 @@ Completed:
 - Connected this local folder to `trustlayersol/stable-coin-trader`.
 - Created the initial design spec.
 - Created the first implementation plan: `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
+- Implemented the Python package, safe config loader, domain models, SQLite ledger, fixture loaders, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
+- Added deterministic fixture data and integration tests for the paper loop.
 
-Not started:
+Task 10 hardening completed:
 
-- No trading code has been implemented.
+- Fail closed when existing ledger exposure cannot be read.
+- Reject future-dated and stale market data using the engine clock.
+- Load research signals using the engine clock.
+- Support configurable fee and slippage basis points.
+- Use `run_as_of` in the example config to replay fixtures deterministically.
+- Skip duplicate already-filled opportunities on repeated runs.
+- Allow the same prices to trade again at a new market observation time.
+- Ignore future-dated research signals.
+- Add atomic pair execution so both paper legs are recorded together or no fills are recorded.
+- Guard duplicate opportunity fills inside the ledger write transaction for overlapping runs.
+- Verified with the full automated test suite.
+
+Still not started:
+
 - No API keys or secrets have been added.
 - No live trading has been enabled.
 - No exchange accounts have been connected.
+- No real exchange market-data adapters have been added.
 
 ## Selected Approach
 
@@ -47,34 +68,41 @@ Approach 3 comes later:
 - Social trend intelligence.
 - Broader dashboard and operations tooling.
 
-## Proposed Project Layout
-
-The implementation plan may refine this, but the expected layout is:
+## Project Layout
 
 ```text
 .
 +-- PROJECT.md
 +-- PROJECT_LOG.md
++-- README.md
++-- config/
+|   +-- paper.example.json
++-- data/
+|   +-- fixtures/
+|       +-- market_snapshots.json
+|       +-- research_signals.json
+|       +-- research_signals_empty.json
 +-- docs/
 |   +-- superpowers/
+|       +-- plans/
+|       |   +-- 2026-05-13-core-skeleton-paper-loop.md
 |       +-- specs/
 |           +-- 2026-05-13-risk-aware-stablecoin-trader-design.md
 +-- src/
 |   +-- stable_coin_trader/
-|       +-- config/
-|       +-- exchanges/
-|       +-- market_data/
-|       +-- research/
-|       +-- opportunities/
-|       +-- risk/
-|       +-- execution/
-|       +-- ledger/
-|       +-- monitoring/
+|       +-- cli.py
+|       +-- config.py
+|       +-- engine.py
+|       +-- ledger.py
+|       +-- market_data.py
+|       +-- models.py
+|       +-- opportunities.py
+|       +-- paper.py
+|       +-- research.py
+|       +-- risk.py
 +-- tests/
 |   +-- unit/
 |   +-- integration/
-|   +-- fixtures/
-+-- scripts/
 ```
 
 ## Design Rules
@@ -91,10 +119,8 @@ The implementation plan may refine this, but the expected layout is:
 
 ## Next Steps
 
-1. Review the first implementation plan in `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
-2. Choose Subagent-Driven or Inline Execution for that plan.
-3. Build the project skeleton, config system, ledger schema, and paper-trading loop.
-4. Add exchange market-data adapters.
-5. Add the opportunity engine and risk engine.
-6. Add research signal ingestion.
-7. Run paper trading before any live trading.
+1. Push the implementation branch to GitHub.
+2. Add the first real exchange market-data adapter, likely Kraken or Coinbase.
+3. Keep execution in paper mode while validating spreads, stale-data handling, fees, and ledger behavior.
+4. Add exchange status and research-source ingestion.
+5. Run paper trading before any live trading.

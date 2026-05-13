@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stable-coin-trader"
+version = "0.1.0"
+description = "Risk-aware stablecoin paper trading bot for proprietary capital."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.7,<3",
+  "typer>=0.12,<1",
+  "rich>=13.7,<14"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2,<9"
+]
+
+[project.scripts]
+stable-coin-trader = "stable_coin_trader.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stable_coin_trader"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

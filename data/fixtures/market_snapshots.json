@@ -1,0 +1,20 @@
+[
+  {
+    "venue": "coinbase",
+    "symbol": "USDC/USD",
+    "bid": "1.0000",
+    "ask": "1.0002",
+    "bid_size": "50000",
+    "ask_size": "50000",
+    "observed_at": "2026-05-13T12:00:00Z"
+  },
+  {
+    "venue": "kraken",
+    "symbol": "USDC/USD",
+    "bid": "0.9994",
+    "ask": "0.9996",
+    "bid_size": "25000",
+    "ask_size": "25000",
+    "observed_at": "2026-05-13T12:00:00Z"
+  }
+]
