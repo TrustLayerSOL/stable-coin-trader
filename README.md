@@ -108,6 +108,21 @@ Sampling is finite and paper-only. It fetches public market data, appends
 observations with a local file lock and atomic replace, prints per-sample
 progress, counts failures, and stops.
 
+## Temporary Observer Dashboard
+
+Start a read-only local dashboard for an active observation file:
+
+```bash
+stable-coin-trader dashboard \
+  --observations runtime/spread_observations_20260513_2h_canary.jsonl \
+  --log runtime/logs/spread_sampling_20260513_2h_canary.log \
+  --expected-samples 240 \
+  --port 8777
+```
+
+Then open `http://127.0.0.1:8777/`. The dashboard only reads local JSON Lines
+and log files. It does not read credentials or place trades.
+
 ## Current Layout
 
 ```text
@@ -117,6 +132,7 @@ data/fixtures/research_signals.json       Defensive research-signal fixture
 data/fixtures/research_signals_empty.json Demo fixture with no active research signals
 src/stable_coin_trader/config.py          Safe paper config loader
 src/stable_coin_trader/coinbase.py        Coinbase public market-data adapter
+src/stable_coin_trader/dashboard.py       Temporary read-only observer dashboard
 src/stable_coin_trader/ledger.py          SQLite risk-decision and paper-fill ledger
 src/stable_coin_trader/kraken.py          Kraken public market-data adapter
 src/stable_coin_trader/market_data.py     Fixture market-data loader

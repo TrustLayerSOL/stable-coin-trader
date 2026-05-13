@@ -142,3 +142,10 @@
 - Built-in spread report result: 0 profitable observations after 0.5 bps slippage, best route `kraken->coinbase USDC/EUR`, best edge `-1` bps, average edge `-2.20053077` bps.
 - Route breakdown: `coinbase->kraken USDC/EUR` averaged `-2.054072046300159862462471311` bps, and `kraken->coinbase USDC/EUR` averaged `-2.346989495561917200403584050` bps.
 - Current conclusion: this short USDC/EUR sample shows no tradable edge after costs; continue longer observation windows before adding private APIs or live execution.
+
+### Temporary Observer Dashboard
+
+- Started a 2-hour public Kraken/Coinbase USDC/EUR sampling canary: 240 samples at 30-second intervals, expected runtime about 2 hours.
+- Added a temporary read-only local dashboard served on `http://127.0.0.1:8777/`.
+- The dashboard reads the active JSON Lines observation file and sampler log, refreshes every 5 seconds, and shows sample progress, observation count, route statistics, latest observations, and log tail.
+- It has no trading controls, no private API access, and no credential reads.

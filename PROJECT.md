@@ -35,6 +35,7 @@ Completed:
 - Opened draft PR #5 for the spread sampling runner.
 - Merged PRs #1-#5 into `main`.
 - Ran the first merged-main public spread sampling pass: 20 samples, 40 observations, 0 profitable routes after 0.5 bps slippage.
+- Started a 2-hour public USDC/EUR sampling canary and added a temporary read-only local dashboard on port `8777`.
 
 Task 10 hardening completed:
 
@@ -140,6 +141,7 @@ Approach 3 comes later:
 |       +-- cli.py
 |       +-- coinbase.py
 |       +-- config.py
+|       +-- dashboard.py
 |       +-- engine.py
 |       +-- kraken.py
 |       +-- ledger.py
@@ -171,9 +173,10 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Run longer public Kraken/Coinbase spread observations before any live trading.
-2. Add an edge analysis report that summarizes route-level hit rate, best/worst edge, average edge, failure rate, and cost sensitivity.
-3. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
-4. Add exchange status and research-source ingestion after measurement is running.
-5. Add storage rotation or a database-backed observation store if JSON Lines history grows beyond practical file size.
-6. Only consider tiny live execution after observations and paper trading show a repeatable net edge after costs.
+1. Let the 2-hour public USDC/EUR sampling canary finish and inspect the dashboard.
+2. Run longer public Kraken/Coinbase spread observations before any live trading.
+3. Add an edge analysis report that summarizes route-level hit rate, best/worst edge, average edge, failure rate, and cost sensitivity.
+4. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
+5. Add exchange status and research-source ingestion after measurement is running.
+6. Add storage rotation or a database-backed observation store if JSON Lines history grows beyond practical file size.
+7. Only consider tiny live execution after observations and paper trading show a repeatable net edge after costs.
