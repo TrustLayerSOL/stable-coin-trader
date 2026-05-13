@@ -151,6 +151,28 @@ def test_risk_engine_rejects_order_above_max_position() -> None:
     assert decision.reason == "order exceeds max position size"
 
 
+@pytest.mark.parametrize(
+    "current_position_usd",
+    [Decimal("-1"), Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")],
+)
+def test_risk_engine_rejects_invalid_current_position(
+    current_position_usd: Decimal,
+) -> None:
+    engine = RiskEngine(make_config())
+    opportunity = make_opportunity()
+    trade = make_trade(opportunity)
+
+    decision = engine.evaluate(
+        trade=trade,
+        opportunity=opportunity,
+        signals=[],
+        current_position_usd=current_position_usd,
+    )
+
+    assert decision.approved is False
+    assert decision.reason == "invalid current position"
+
+
 def test_risk_increase_signal_tightens_min_edge_and_can_reject_trade() -> None:
     engine = RiskEngine(make_config())
     opportunity = make_opportunity(net_edge_case="tight")
@@ -399,6 +421,28 @@ def test_trade_opportunity_mismatch_fails_closed(
 
     assert decision.approved is False
     assert decision.reason == "trade does not match opportunity"
+
+
+def test_trade_opportunity_mismatch_does_not_attach_opportunity_signals() -> None:
+    engine = RiskEngine(make_config())
+    opportunity = make_opportunity()
+    trade = make_trade(opportunity, venue="coinbase")
+    signal = make_signal(
+        id="opportunity-scoped",
+        affected_assets=["USDC"],
+        affected_venues=["kraken"],
+        human_review_required=True,
+    )
+
+    decision = engine.evaluate(
+        trade=trade,
+        opportunity=opportunity,
+        signals=[signal],
+    )
+
+    assert decision.approved is False
+    assert decision.reason == "trade does not match opportunity"
+    assert decision.active_signal_ids == []
 
 
 def test_sell_trade_must_match_sell_leg() -> None:

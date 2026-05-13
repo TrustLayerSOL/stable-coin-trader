@@ -17,6 +17,13 @@ class RiskEngine:
         signals: list[ResearchSignal],
         current_position_usd: Decimal = Decimal("0"),
     ) -> RiskDecision:
+        if not self._trade_matches_opportunity(trade, opportunity):
+            return RiskDecision.reject(
+                trade=trade,
+                reason="trade does not match opportunity",
+                min_edge_bps=self.config.min_edge_bps,
+            )
+
         scoped_signals = self._signals_for_opportunity(opportunity, signals)
         human_review_signals = [
             signal for signal in scoped_signals if signal.human_review_required
@@ -30,14 +37,6 @@ class RiskEngine:
         active_signals = sorted(active_signals_by_id.values(), key=lambda signal: signal.id)
         active_signal_ids = [signal.id for signal in active_signals]
 
-        if not self._trade_matches_opportunity(trade, opportunity):
-            return RiskDecision.reject(
-                trade=trade,
-                reason="trade does not match opportunity",
-                min_edge_bps=self.config.min_edge_bps,
-                active_signal_ids=active_signal_ids,
-            )
-
         if not self._opportunity_is_configured(opportunity):
             return RiskDecision.reject(
                 trade=trade,
@@ -47,6 +46,14 @@ class RiskEngine:
             )
 
         notional = trade.size * trade.limit_price
+        if not current_position_usd.is_finite() or current_position_usd < 0:
+            return RiskDecision.reject(
+                trade=trade,
+                reason="invalid current position",
+                min_edge_bps=self.config.min_edge_bps,
+                active_signal_ids=active_signal_ids,
+            )
+
         if current_position_usd + notional > self.config.max_position_usd:
             return RiskDecision.reject(
                 trade=trade,
