@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+NonEmptyString = Annotated[str, Field(min_length=1)]
 
 
 def utc_now() -> datetime:
@@ -18,15 +20,15 @@ def parse_dt(value: datetime | str) -> datetime:
     elif isinstance(value, str):
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     else:
-        raise TypeError("expected datetime or ISO datetime string")
+        raise ValueError("expected datetime or ISO datetime string")
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
 
 
 class MarketSnapshot(BaseModel):
-    venue: str
-    symbol: str
+    venue: NonEmptyString
+    symbol: NonEmptyString
     bid: Decimal
     ask: Decimal
     bid_size: Decimal
@@ -54,10 +56,10 @@ class MarketSnapshot(BaseModel):
 
 
 class Opportunity(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    buy_venue: str
-    sell_venue: str
-    symbol: str
+    id: NonEmptyString = Field(default_factory=lambda: str(uuid4()))
+    buy_venue: NonEmptyString
+    sell_venue: NonEmptyString
+    symbol: NonEmptyString
     size: Decimal = Field(gt=0)
     buy_price: Decimal = Field(gt=0)
     sell_price: Decimal = Field(gt=0)
@@ -90,23 +92,23 @@ class Opportunity(BaseModel):
 
 
 class ProposedTrade(BaseModel):
-    opportunity_id: str
+    opportunity_id: NonEmptyString
     side: Literal["buy", "sell"]
-    venue: str
-    symbol: str
+    venue: NonEmptyString
+    symbol: NonEmptyString
     size: Decimal = Field(gt=0)
     limit_price: Decimal = Field(gt=0)
 
 
 class ResearchSignal(BaseModel):
-    id: str
+    id: NonEmptyString
     observed_at: datetime
     published_at: datetime
-    source: str
-    source_url: str
+    source: NonEmptyString
+    source_url: NonEmptyString
     source_quality: float = Field(ge=0, le=1)
-    affected_assets: list[str]
-    affected_venues: list[str]
+    affected_assets: list[NonEmptyString]
+    affected_venues: list[NonEmptyString]
     event_type: Literal[
         "depeg_risk",
         "issuer_reserve",
@@ -125,7 +127,7 @@ class ResearchSignal(BaseModel):
     severity: int = Field(ge=0, le=5)
     confidence: float = Field(ge=0, le=1)
     ttl_seconds: int = Field(gt=0)
-    summary: str
+    summary: NonEmptyString
     human_review_required: bool = False
 
     @field_validator("observed_at", "published_at", mode="before")
@@ -151,10 +153,10 @@ class ResearchSignal(BaseModel):
 class RiskDecision(BaseModel):
     trade: ProposedTrade
     approved: bool
-    reason: str
+    reason: NonEmptyString
     min_edge_bps: Decimal = Decimal("0")
     requires_human_approval: bool = False
-    active_signal_ids: list[str] = Field(default_factory=list)
+    active_signal_ids: list[NonEmptyString] = Field(default_factory=list)
 
     @classmethod
     def approve(

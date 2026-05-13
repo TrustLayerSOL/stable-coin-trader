@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -140,10 +141,7 @@ def test_opportunity_net_edge_bps() -> None:
     assert opportunity.gross_profit == Decimal("0.5000")
     assert opportunity.net_profit == Decimal("0.0500")
     assert opportunity.notional == Decimal("999.5000")
-    expected_edge = (opportunity.net_profit / opportunity.notional) * Decimal("10000")
-    assert opportunity.net_edge_bps.quantize(Decimal("0.0001")) == expected_edge.quantize(
-        Decimal("0.0001")
-    )
+    assert opportunity.net_edge_bps.quantize(Decimal("0.0001")) == Decimal("0.5003")
 
 
 @pytest.mark.parametrize(
@@ -280,8 +278,135 @@ def test_research_signal_risk_score_avoids_float_noise() -> None:
 
 
 def test_parse_dt_rejects_invalid_type_with_clear_error() -> None:
-    with pytest.raises((TypeError, ValueError), match="datetime|string|str|ISO"):
+    with pytest.raises(ValueError, match="datetime|string|str|ISO"):
         parse_dt(123)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "model_factory",
+    [
+        lambda: MarketSnapshot(
+            venue="coinbase",
+            symbol="USDC/USD",
+            bid=Decimal("0.9998"),
+            ask=Decimal("1.0000"),
+            bid_size=Decimal("50000"),
+            ask_size=Decimal("75000"),
+            observed_at=123,
+        ),
+        lambda: Opportunity(
+            buy_venue="kraken",
+            sell_venue="coinbase",
+            symbol="USDC/USD",
+            size=Decimal("1000"),
+            buy_price=Decimal("0.9995"),
+            sell_price=Decimal("1.0000"),
+            estimated_fees=Decimal("0.40"),
+            estimated_slippage=Decimal("0.05"),
+            observed_at=123,
+        ),
+        lambda: make_research_signal(observed_at=123),
+        lambda: make_research_signal(published_at=123),
+    ],
+)
+def test_datetime_models_reject_invalid_datetime_types(
+    model_factory: Callable[[], object],
+) -> None:
+    with pytest.raises(ValidationError):
+        model_factory()
+
+
+@pytest.mark.parametrize(
+    "model_factory",
+    [
+        lambda: MarketSnapshot(
+            venue="",
+            symbol="USDC/USD",
+            bid=Decimal("0.9998"),
+            ask=Decimal("1.0000"),
+            bid_size=Decimal("50000"),
+            ask_size=Decimal("75000"),
+            observed_at="2026-05-13T12:00:00Z",
+        ),
+        lambda: MarketSnapshot(
+            venue="coinbase",
+            symbol="",
+            bid=Decimal("0.9998"),
+            ask=Decimal("1.0000"),
+            bid_size=Decimal("50000"),
+            ask_size=Decimal("75000"),
+            observed_at="2026-05-13T12:00:00Z",
+        ),
+        lambda: Opportunity(
+            id="",
+            buy_venue="kraken",
+            sell_venue="coinbase",
+            symbol="USDC/USD",
+            size=Decimal("1000"),
+            buy_price=Decimal("0.9995"),
+            sell_price=Decimal("1.0000"),
+            estimated_fees=Decimal("0.40"),
+            estimated_slippage=Decimal("0.05"),
+            observed_at="2026-05-13T12:00:00Z",
+        ),
+        lambda: Opportunity(
+            buy_venue="",
+            sell_venue="coinbase",
+            symbol="USDC/USD",
+            size=Decimal("1000"),
+            buy_price=Decimal("0.9995"),
+            sell_price=Decimal("1.0000"),
+            estimated_fees=Decimal("0.40"),
+            estimated_slippage=Decimal("0.05"),
+            observed_at="2026-05-13T12:00:00Z",
+        ),
+        lambda: Opportunity(
+            buy_venue="kraken",
+            sell_venue="",
+            symbol="USDC/USD",
+            size=Decimal("1000"),
+            buy_price=Decimal("0.9995"),
+            sell_price=Decimal("1.0000"),
+            estimated_fees=Decimal("0.40"),
+            estimated_slippage=Decimal("0.05"),
+            observed_at="2026-05-13T12:00:00Z",
+        ),
+        lambda: ProposedTrade(
+            opportunity_id="",
+            side="buy",
+            venue="kraken",
+            symbol="USDC/USD",
+            size=Decimal("1000"),
+            limit_price=Decimal("0.9995"),
+        ),
+        lambda: ProposedTrade(
+            opportunity_id="opp-1",
+            side="buy",
+            venue="",
+            symbol="USDC/USD",
+            size=Decimal("1000"),
+            limit_price=Decimal("0.9995"),
+        ),
+        lambda: make_research_signal(id=""),
+        lambda: make_research_signal(source=""),
+        lambda: make_research_signal(source_url=""),
+        lambda: make_research_signal(summary=""),
+        lambda: make_research_signal(affected_assets=[""]),
+        lambda: make_research_signal(affected_venues=[""]),
+        lambda: RiskDecision.reject(trade=make_trade(), reason=""),
+        lambda: RiskDecision.approve(
+            trade=make_trade(),
+            reason="edge clears threshold",
+            min_edge_bps=Decimal("2.5"),
+            active_signal_ids=[""],
+        ),
+    ],
+)
+def test_models_reject_empty_identity_and_reason_strings(
+    model_factory: Callable[[], object],
+) -> None:
+    with pytest.raises(ValidationError):
+        model_factory()
 
 
 def test_risk_decision_explains_rejection() -> None:
