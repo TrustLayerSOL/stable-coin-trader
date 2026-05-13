@@ -46,16 +46,13 @@ class BotConfig(BaseModel):
     )
     @classmethod
     def validate_non_blank_path(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            stripped = value.strip()
+        if isinstance(value, (str, PathLike)):
+            stripped = str(value).strip()
             if not stripped:
                 raise ValueError("path cannot be blank")
             if Path(stripped) == Path("."):
                 raise ValueError("path cannot be the current directory")
             value = stripped
-
-        if isinstance(value, PathLike) and Path(value) == Path("."):
-            raise ValueError("path cannot be the current directory")
 
         return value
 

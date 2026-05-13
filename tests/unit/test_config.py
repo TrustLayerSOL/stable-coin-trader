@@ -45,6 +45,14 @@ def test_load_config_from_json(tmp_path) -> None:
     assert config.min_edge_bps == Decimal("2.5")
 
 
+def test_load_shipped_paper_example_config() -> None:
+    config_path = Path(__file__).resolve().parents[2] / "config" / "paper.example.json"
+
+    config = load_config(config_path)
+
+    assert config.mode == "paper"
+
+
 def test_config_rejects_unknown_keys(tmp_path) -> None:
     data = valid_config_data(tmp_path) | {"unexpected": "value"}
 
@@ -91,18 +99,24 @@ def test_config_rejects_blank_symbols_and_venues(tmp_path, field, value) -> None
         ("ledger_path", "."),
         ("ledger_path", "./"),
         ("ledger_path", Path(".")),
+        ("ledger_path", Path(" ")),
+        ("ledger_path", Path("\t\n")),
         ("market_data_path", ""),
         ("market_data_path", " "),
         ("market_data_path", "\t\n"),
         ("market_data_path", "."),
         ("market_data_path", "./"),
         ("market_data_path", Path(".")),
+        ("market_data_path", Path(" ")),
+        ("market_data_path", Path("\t\n")),
         ("research_signals_path", ""),
         ("research_signals_path", " "),
         ("research_signals_path", "\t\n"),
         ("research_signals_path", "."),
         ("research_signals_path", "./"),
         ("research_signals_path", Path(".")),
+        ("research_signals_path", Path(" ")),
+        ("research_signals_path", Path("\t\n")),
     ],
 )
 def test_config_rejects_blank_paths(tmp_path, field, value) -> None:
