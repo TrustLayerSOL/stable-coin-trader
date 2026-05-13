@@ -1,9 +1,30 @@
 import json
+import sqlite3
 from datetime import datetime
 from decimal import Decimal
 
+import pytest
+
 from stable_coin_trader.ledger import Ledger
 from stable_coin_trader.models import ProposedTrade, RiskDecision
+
+
+def _record_approved_decision(ledger: Ledger) -> int:
+    trade = ProposedTrade(
+        opportunity_id="opp-1",
+        side="buy",
+        venue="kraken",
+        symbol="USDC/USD",
+        size=Decimal("1000"),
+        limit_price=Decimal("0.9995"),
+    )
+    return ledger.record_risk_decision(
+        RiskDecision.approve(
+            trade=trade,
+            reason="net edge meets threshold",
+            min_edge_bps=Decimal("2.5"),
+        )
+    )
 
 
 def test_ledger_records_risk_decision(tmp_path) -> None:
@@ -87,21 +108,7 @@ def test_ledger_records_rejected_human_review_risk_decision(tmp_path) -> None:
 def test_ledger_records_paper_fill(tmp_path) -> None:
     ledger = Ledger(tmp_path / "ledger.sqlite3")
     ledger.initialize()
-    trade = ProposedTrade(
-        opportunity_id="opp-1",
-        side="buy",
-        venue="kraken",
-        symbol="USDC/USD",
-        size=Decimal("1000"),
-        limit_price=Decimal("0.9995"),
-    )
-    decision_id = ledger.record_risk_decision(
-        RiskDecision.approve(
-            trade=trade,
-            reason="net edge meets threshold",
-            min_edge_bps=Decimal("2.5"),
-        )
-    )
+    decision_id = _record_approved_decision(ledger)
 
     fill_id = ledger.record_paper_fill(
         risk_decision_id=decision_id,
@@ -129,3 +136,56 @@ def test_ledger_records_paper_fill(tmp_path) -> None:
     assert row["size"] == "1000"
     assert row["price"] == "0.9995"
     assert row["fee"] == "0.20"
+
+
+def test_ledger_rejects_paper_fill_with_unknown_risk_decision_id(tmp_path) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite3")
+    ledger.initialize()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        ledger.record_paper_fill(
+            risk_decision_id=999,
+            opportunity_id="opp-1",
+            venue="kraken",
+            symbol="USDC/USD",
+            side="buy",
+            size=Decimal("1000"),
+            price=Decimal("0.9995"),
+            fee=Decimal("0.20"),
+        )
+
+
+def test_ledger_rejects_paper_fill_with_mismatched_venue(tmp_path) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite3")
+    ledger.initialize()
+    decision_id = _record_approved_decision(ledger)
+
+    with pytest.raises(ValueError, match="venue"):
+        ledger.record_paper_fill(
+            risk_decision_id=decision_id,
+            opportunity_id="opp-1",
+            venue="coinbase",
+            symbol="USDC/USD",
+            side="buy",
+            size=Decimal("1000"),
+            price=Decimal("0.9995"),
+            fee=Decimal("0.20"),
+        )
+
+
+def test_ledger_rejects_paper_fill_with_mismatched_price(tmp_path) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite3")
+    ledger.initialize()
+    decision_id = _record_approved_decision(ledger)
+
+    with pytest.raises(ValueError, match="price"):
+        ledger.record_paper_fill(
+            risk_decision_id=decision_id,
+            opportunity_id="opp-1",
+            venue="kraken",
+            symbol="USDC/USD",
+            side="buy",
+            size=Decimal("1000"),
+            price=Decimal("1.0000"),
+            fee=Decimal("0.20"),
+        )

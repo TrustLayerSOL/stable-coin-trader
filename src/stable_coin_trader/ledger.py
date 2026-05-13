@@ -15,6 +15,7 @@ class Ledger:
     def connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.path)
+        conn.execute("pragma foreign_keys = on")
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -41,7 +42,7 @@ class Ledger:
                 create table if not exists paper_fills (
                     id integer primary key autoincrement,
                     created_at text not null,
-                    risk_decision_id integer not null,
+                    risk_decision_id integer not null references risk_decisions(id),
                     opportunity_id text not null,
                     venue text not null,
                     symbol text not null,
@@ -102,6 +103,16 @@ class Ledger:
         fee: Decimal,
     ) -> int:
         with self.connect() as conn:
+            self._validate_paper_fill_matches_decision(
+                conn=conn,
+                risk_decision_id=risk_decision_id,
+                opportunity_id=opportunity_id,
+                venue=venue,
+                symbol=symbol,
+                side=side,
+                size=size,
+                price=price,
+            )
             cursor = conn.execute(
                 """
                 insert into paper_fills (
@@ -130,6 +141,65 @@ class Ledger:
                 ),
             )
             return int(cursor.lastrowid)
+
+    def _validate_paper_fill_matches_decision(
+        self,
+        conn: sqlite3.Connection,
+        risk_decision_id: int,
+        opportunity_id: str,
+        venue: str,
+        symbol: str,
+        side: str,
+        size: Decimal,
+        price: Decimal,
+    ) -> None:
+        row = conn.execute(
+            """
+            select
+                opportunity_id,
+                venue,
+                symbol,
+                side,
+                size,
+                limit_price
+            from risk_decisions
+            where id = ?
+            """,
+            (risk_decision_id,),
+        ).fetchone()
+        if row is None:
+            return
+
+        expected = {
+            "opportunity_id": row["opportunity_id"],
+            "venue": row["venue"],
+            "symbol": row["symbol"],
+            "side": row["side"],
+            "size": row["size"],
+            "price": row["limit_price"],
+        }
+        actual = {
+            "opportunity_id": opportunity_id,
+            "venue": venue,
+            "symbol": symbol,
+            "side": side,
+            "size": str(size),
+            "price": str(price),
+        }
+        mismatches = [
+            field
+            for field, expected_value in expected.items()
+            if actual[field] != expected_value
+        ]
+        if mismatches:
+            details = ", ".join(
+                f"{field} expected {expected[field]!r} got {actual[field]!r}"
+                for field in mismatches
+            )
+            raise ValueError(
+                "paper fill does not match risk decision "
+                f"{risk_decision_id}: {details}"
+            )
 
     def fetch_all(self, sql: str) -> list[sqlite3.Row]:
         with self.connect() as conn:
