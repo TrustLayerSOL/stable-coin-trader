@@ -146,21 +146,38 @@ def test_opportunity_net_edge_bps() -> None:
     )
 
 
-def test_opportunity_net_edge_bps_returns_zero_for_non_positive_notional() -> None:
-    opportunity = Opportunity(
-        buy_venue="kraken",
-        sell_venue="coinbase",
-        symbol="USDC/USD",
-        size=Decimal("1000"),
-        buy_price=Decimal("0"),
-        sell_price=Decimal("1.0000"),
-        estimated_fees=Decimal("0.40"),
-        estimated_slippage=Decimal("0.05"),
-        observed_at="2026-05-13T12:00:00Z",
-    )
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("size", Decimal("0")),
+        ("size", Decimal("-1")),
+        ("buy_price", Decimal("0")),
+        ("buy_price", Decimal("-0.0001")),
+        ("sell_price", Decimal("0")),
+        ("sell_price", Decimal("-0.0001")),
+        ("estimated_fees", Decimal("-0.01")),
+        ("estimated_slippage", Decimal("-0.01")),
+    ],
+)
+def test_opportunity_rejects_invalid_monetary_values(
+    field_name: str,
+    invalid_value: Decimal,
+) -> None:
+    values = {
+        "buy_venue": "kraken",
+        "sell_venue": "coinbase",
+        "symbol": "USDC/USD",
+        "size": Decimal("1000"),
+        "buy_price": Decimal("0.9995"),
+        "sell_price": Decimal("1.0000"),
+        "estimated_fees": Decimal("0.40"),
+        "estimated_slippage": Decimal("0.05"),
+        "observed_at": "2026-05-13T12:00:00Z",
+    }
+    values[field_name] = invalid_value
 
-    assert opportunity.notional == Decimal("0")
-    assert opportunity.net_edge_bps == Decimal("0")
+    with pytest.raises(ValidationError):
+        Opportunity(**values)
 
 
 def test_opportunity_default_id_is_uuid_string() -> None:
@@ -191,6 +208,33 @@ def test_proposed_trade_rejects_invalid_side() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("size", Decimal("0")),
+        ("size", Decimal("-1")),
+        ("limit_price", Decimal("0")),
+        ("limit_price", Decimal("-0.0001")),
+    ],
+)
+def test_proposed_trade_rejects_invalid_size_and_limit_price(
+    field_name: str,
+    invalid_value: Decimal,
+) -> None:
+    values = {
+        "opportunity_id": "opp-1",
+        "side": "buy",
+        "venue": "kraken",
+        "symbol": "USDC/USD",
+        "size": Decimal("1000"),
+        "limit_price": Decimal("0.9995"),
+    }
+    values[field_name] = invalid_value
+
+    with pytest.raises(ValidationError):
+        ProposedTrade(**values)
+
+
 def test_research_signal_requires_valid_direction() -> None:
     with pytest.raises(ValidationError):
         make_research_signal(direction="buy_now")
@@ -219,6 +263,7 @@ def test_research_signal_is_expired_uses_ttl_boundary() -> None:
     signal = make_research_signal(ttl_seconds=3600)
 
     assert signal.is_expired(datetime(2026, 5, 13, 12, 59, 59, tzinfo=timezone.utc)) is False
+    assert signal.is_expired(datetime(2026, 5, 13, 13, 0, 0, tzinfo=timezone.utc)) is False
     assert signal.is_expired(datetime(2026, 5, 13, 13, 0, 1, tzinfo=timezone.utc)) is True
 
 
@@ -226,6 +271,17 @@ def test_research_signal_risk_score_multiplies_severity_confidence_source_qualit
     signal = make_research_signal(severity=4, confidence=0.5, source_quality=0.75)
 
     assert signal.risk_score == Decimal("1.5")
+
+
+def test_research_signal_risk_score_avoids_float_noise() -> None:
+    signal = make_research_signal(severity=3, confidence=0.1, source_quality=0.1)
+
+    assert signal.risk_score == Decimal("0.03")
+
+
+def test_parse_dt_rejects_invalid_type_with_clear_error() -> None:
+    with pytest.raises((TypeError, ValueError), match="datetime|string|str|ISO"):
+        parse_dt(123)  # type: ignore[arg-type]
 
 
 def test_risk_decision_explains_rejection() -> None:

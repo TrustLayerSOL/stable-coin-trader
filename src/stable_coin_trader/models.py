@@ -15,8 +15,10 @@ def utc_now() -> datetime:
 def parse_dt(value: datetime | str) -> datetime:
     if isinstance(value, datetime):
         parsed = value
-    else:
+    elif isinstance(value, str):
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        raise TypeError("expected datetime or ISO datetime string")
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
@@ -56,11 +58,11 @@ class Opportunity(BaseModel):
     buy_venue: str
     sell_venue: str
     symbol: str
-    size: Decimal
-    buy_price: Decimal
-    sell_price: Decimal
-    estimated_fees: Decimal
-    estimated_slippage: Decimal
+    size: Decimal = Field(gt=0)
+    buy_price: Decimal = Field(gt=0)
+    sell_price: Decimal = Field(gt=0)
+    estimated_fees: Decimal = Field(ge=0)
+    estimated_slippage: Decimal = Field(ge=0)
     observed_at: datetime
 
     @field_validator("observed_at", mode="before")
@@ -92,8 +94,8 @@ class ProposedTrade(BaseModel):
     side: Literal["buy", "sell"]
     venue: str
     symbol: str
-    size: Decimal
-    limit_price: Decimal
+    size: Decimal = Field(gt=0)
+    limit_price: Decimal = Field(gt=0)
 
 
 class ResearchSignal(BaseModel):
@@ -139,7 +141,11 @@ class ResearchSignal(BaseModel):
 
     @property
     def risk_score(self) -> Decimal:
-        return Decimal(str(self.severity * self.confidence * self.source_quality))
+        return (
+            Decimal(str(self.severity))
+            * Decimal(str(self.confidence))
+            * Decimal(str(self.source_quality))
+        )
 
 
 class RiskDecision(BaseModel):
