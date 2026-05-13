@@ -49,6 +49,8 @@ def test_load_config_from_json(tmp_path) -> None:
     assert config.venues == ["coinbase", "kraken"]
     assert config.max_order_usd == Decimal("1000")
     assert config.min_edge_bps == Decimal("2.5")
+    assert config.fee_bps == Decimal("1")
+    assert config.slippage_bps == Decimal("0.5")
 
 
 def test_load_shipped_paper_example_config() -> None:
@@ -196,6 +198,8 @@ def test_config_rejects_normalized_duplicate_paths(tmp_path) -> None:
         ("daily_loss_limit_usd", "0"),
         ("daily_loss_limit_usd", "-1"),
         ("min_edge_bps", "-1"),
+        ("fee_bps", "-1"),
+        ("slippage_bps", "-1"),
     ],
 )
 def test_config_rejects_invalid_money_limits(tmp_path, field, value) -> None:

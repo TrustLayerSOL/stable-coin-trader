@@ -38,6 +38,8 @@ class BotConfig(BaseModel):
     max_order_usd: Decimal = Field(gt=0)
     max_position_usd: Decimal = Field(gt=0)
     min_edge_bps: Decimal = Field(ge=0)
+    fee_bps: Decimal = Field(default=Decimal("1"), ge=0)
+    slippage_bps: Decimal = Field(default=Decimal("0.5"), ge=0)
     stale_after_seconds: int = Field(gt=0, strict=True)
     depeg_threshold_bps: Decimal = Field(gt=0)
     daily_loss_limit_usd: Decimal = Field(gt=0)

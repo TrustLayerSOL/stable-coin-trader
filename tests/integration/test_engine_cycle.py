@@ -1,10 +1,12 @@
 import json
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
 from stable_coin_trader.config import BotConfig
 from stable_coin_trader.engine import run_once
 from stable_coin_trader.ledger import Ledger
+from stable_coin_trader.models import ProposedTrade, RiskDecision
 
 
 def _write_json(path: Path, data: object) -> None:
@@ -83,27 +85,30 @@ def _config(
     tmp_path,
     market_data: list[dict[str, object]],
     research_signals: list[dict[str, object]],
+    **overrides: object,
 ) -> BotConfig:
     market_path = tmp_path / "market.json"
     signals_path = tmp_path / "signals.json"
     _write_json(market_path, market_data)
     _write_json(signals_path, research_signals)
 
-    return BotConfig(
-        mode="paper",
-        ledger_path=tmp_path / "paper.sqlite3",
-        market_data_path=market_path,
-        research_signals_path=signals_path,
-        base_currency="USD",
-        symbols=["USDC/USD"],
-        venues=["coinbase", "kraken"],
-        max_order_usd="1000",
-        max_position_usd="5000",
-        min_edge_bps="1",
-        stale_after_seconds=20,
-        depeg_threshold_bps="30",
-        daily_loss_limit_usd="25",
-    )
+    values: dict[str, object] = {
+        "mode": "paper",
+        "ledger_path": tmp_path / "paper.sqlite3",
+        "market_data_path": market_path,
+        "research_signals_path": signals_path,
+        "base_currency": "USD",
+        "symbols": ["USDC/USD"],
+        "venues": ["coinbase", "kraken"],
+        "max_order_usd": "1000",
+        "max_position_usd": "5000",
+        "min_edge_bps": "1",
+        "stale_after_seconds": 20,
+        "depeg_threshold_bps": "30",
+        "daily_loss_limit_usd": "25",
+    }
+    values.update(overrides)
+    return BotConfig(**values)
 
 
 def _ledger(config: BotConfig) -> Ledger:
@@ -113,7 +118,10 @@ def _ledger(config: BotConfig) -> Ledger:
 def test_run_once_records_decision_and_fill(tmp_path) -> None:
     config = _config(tmp_path, _profitable_market(), [])
 
-    result = run_once(config)
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
 
     ledger = _ledger(config)
     assert result.opportunities_seen == 1
@@ -129,7 +137,10 @@ def test_run_once_records_rejected_decisions_when_research_requires_review(
 ) -> None:
     config = _config(tmp_path, _profitable_market(), _human_review_signal())
 
-    result = run_once(config)
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
 
     decisions = _ledger(config).fetch_all("select * from risk_decisions order by id")
     assert result.opportunities_seen == 1
@@ -151,7 +162,10 @@ def test_run_once_records_rejected_decisions_when_research_requires_review(
 def test_run_once_with_no_opportunities_initializes_empty_ledger(tmp_path) -> None:
     config = _config(tmp_path, _flat_market(), [])
 
-    result = run_once(config)
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
 
     ledger = _ledger(config)
     assert result.opportunities_seen == 0
@@ -165,7 +179,10 @@ def test_run_once_with_no_opportunities_initializes_empty_ledger(tmp_path) -> No
 def test_run_once_links_each_fill_to_matching_approved_decision(tmp_path) -> None:
     config = _config(tmp_path, _profitable_market(), [])
 
-    result = run_once(config)
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
 
     ledger = _ledger(config)
     decisions = ledger.fetch_all("select * from risk_decisions order by id")
@@ -188,3 +205,97 @@ def test_run_once_links_each_fill_to_matching_approved_decision(tmp_path) -> Non
         assert Decimal(fill["fee"]) == (
             Decimal(fill["size"]) * Decimal(fill["price"]) * Decimal("1")
         ) / Decimal("10000")
+
+
+def test_run_once_evaluates_pair_before_filling_either_leg(tmp_path) -> None:
+    config = _config(
+        tmp_path,
+        _profitable_market(),
+        [],
+        max_position_usd="1500",
+    )
+
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
+
+    ledger = _ledger(config)
+    assert result.approved_trades == 2
+    assert result.rejected_trades == 0
+    assert result.paper_fills == 2
+    assert len(ledger.fetch_all("select * from paper_fills")) == 2
+
+
+def test_run_once_does_not_fill_when_one_leg_would_exceed_existing_exposure(
+    tmp_path,
+) -> None:
+    config = _config(
+        tmp_path,
+        _profitable_market(),
+        [],
+        max_position_usd="1500",
+    )
+    ledger = _ledger(config)
+    ledger.initialize()
+    decision_id = ledger.record_risk_decision(
+        RiskDecision.approve(
+            trade=ProposedTrade(
+                opportunity_id="existing",
+                side="buy",
+                venue="kraken",
+                symbol="USDC/USD",
+                size=Decimal("1000"),
+                limit_price=Decimal("0.9995"),
+            ),
+            reason="existing approved exposure",
+            min_edge_bps=Decimal("1"),
+        )
+    )
+    ledger.record_paper_fill(
+        risk_decision_id=decision_id,
+        opportunity_id="existing",
+        venue="kraken",
+        symbol="USDC/USD",
+        side="buy",
+        size=Decimal("1000"),
+        price=Decimal("0.9995"),
+        fee=Decimal("0"),
+    )
+
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
+
+    assert result.approved_trades == 0
+    assert result.rejected_trades == 2
+    assert result.paper_fills == 0
+    assert len(ledger.fetch_all("select * from paper_fills")) == 1
+
+
+def test_run_once_ignores_stale_market_data(tmp_path) -> None:
+    config = _config(tmp_path, _profitable_market(), [])
+
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 1, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.opportunities_seen == 0
+    assert result.approved_trades == 0
+    assert result.rejected_trades == 0
+    assert result.paper_fills == 0
+
+
+def test_run_once_uses_configured_fee_bps(tmp_path) -> None:
+    config = _config(tmp_path, _profitable_market(), [], fee_bps="0")
+
+    result = run_once(
+        config,
+        now=datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc),
+    )
+
+    fills = _ledger(config).fetch_all("select * from paper_fills")
+    assert result.paper_fills == 2
+    assert {Decimal(fill["fee"]) for fill in fills} == {Decimal("0")}
