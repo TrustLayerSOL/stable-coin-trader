@@ -68,6 +68,11 @@ def load_market_snapshots(
     ]
 
 
+def load_all_market_snapshots(path: str | Path) -> list[MarketSnapshot]:
+    data = _load_json_list(_market_data_path(path))
+    return [MarketSnapshot.model_validate(item) for item in data]
+
+
 def write_market_snapshots(path: str | Path, snapshots: list[MarketSnapshot]) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

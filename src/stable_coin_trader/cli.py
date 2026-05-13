@@ -1,3 +1,6 @@
+from decimal import Decimal
+from decimal import InvalidOperation
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -13,7 +16,18 @@ from stable_coin_trader.kraken import (
     KrakenPublicMarketDataClient,
     parse_pair_mapping,
 )
-from stable_coin_trader.market_data import write_market_snapshots
+from stable_coin_trader.market_data import (
+    load_all_market_snapshots,
+    write_market_snapshots,
+)
+from stable_coin_trader.models import parse_dt
+from stable_coin_trader.spread_observations import (
+    SpreadObservationSummary,
+    append_spread_observations,
+    build_spread_observations,
+    load_spread_observations,
+    summarize_spread_observations,
+)
 
 app = typer.Typer(
     help="Risk-aware stablecoin paper trading bot.",
@@ -111,3 +125,124 @@ def fetch_public_snapshots_command(
     console.print(
         f"public snapshots written path={output} count={len(snapshots)}"
     )
+
+
+@app.command("observe-spreads")
+def observe_spreads_command(
+    market_data: Path = typer.Option(
+        ...,
+        "--market-data",
+        help="Input public market snapshot JSON.",
+    ),
+    output: Path = typer.Option(
+        Path("runtime/spread_observations.jsonl"),
+        "--output",
+        help="Append-only spread observation JSONL output.",
+    ),
+    size: str = typer.Option(
+        "1000",
+        "--size",
+        help="Requested stablecoin size for each directional observation.",
+    ),
+    fee_bps: str = typer.Option(
+        "0",
+        "--fee-bps",
+        help="Estimated fee basis points charged on both legs.",
+    ),
+    slippage_bps: str = typer.Option(
+        "0.5",
+        "--slippage-bps",
+        help="Estimated slippage basis points charged on both legs.",
+    ),
+    max_snapshot_lag_seconds: str = typer.Option(
+        "5",
+        "--max-snapshot-lag-seconds",
+        help="Maximum allowed time gap between buy and sell snapshots.",
+    ),
+) -> None:
+    try:
+        size_value = _parse_decimal_option("size", size)
+        fee_bps_value = _parse_decimal_option("fee_bps", fee_bps)
+        slippage_bps_value = _parse_decimal_option("slippage_bps", slippage_bps)
+        max_snapshot_lag_seconds_value = _parse_decimal_option(
+            "max_snapshot_lag_seconds",
+            max_snapshot_lag_seconds,
+        )
+        snapshots = load_all_market_snapshots(market_data)
+        observations = build_spread_observations(
+            snapshots=snapshots,
+            size=size_value,
+            fee_bps=fee_bps_value,
+            slippage_bps=slippage_bps_value,
+            max_snapshot_lag_seconds=max_snapshot_lag_seconds_value,
+        )
+        append_spread_observations(output, observations)
+        summary = summarize_spread_observations(observations)
+    except (OSError, ValueError) as exc:
+        console.print(f"spread observation failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_spread_summary(
+        prefix=f"spread observations recorded path={output}",
+        summary=summary,
+    )
+
+
+@app.command("report-spreads")
+def report_spreads_command(
+    input: Path = typer.Option(
+        ...,
+        "--input",
+        help="Input spread observation JSONL history.",
+    ),
+) -> None:
+    try:
+        observations = load_spread_observations(input)
+        summary = summarize_spread_observations(observations)
+    except (OSError, ValueError) as exc:
+        console.print(f"spread report failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_spread_summary(
+        prefix=f"spread observation report path={input}",
+        summary=summary,
+    )
+
+
+def _parse_decimal_option(name: str, raw_value: str) -> Decimal:
+    try:
+        return Decimal(raw_value)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"{name} must be a decimal") from exc
+
+
+def _print_spread_summary(prefix: str, summary: SpreadObservationSummary) -> None:
+    best_route = summary.best_route or "none"
+    best_edge = _format_optional_decimal(summary.best_net_edge_bps)
+    avg_edge = _format_optional_decimal(summary.average_net_edge_bps)
+    first_observed = _format_optional_datetime(summary.first_observed_at)
+    last_observed = _format_optional_datetime(summary.last_observed_at)
+    console.print(
+        f"{prefix} "
+        f"count={summary.observation_count} "
+        f"profitable={summary.profitable_count} "
+        f"best={best_route} "
+        f"best_edge_bps={best_edge} "
+        f"avg_edge_bps={avg_edge} "
+        f"first={first_observed} "
+        f"last={last_observed}"
+    )
+
+
+def _format_optional_decimal(value: Decimal | None) -> str:
+    if value is None:
+        return "n/a"
+    rounded = value.quantize(Decimal("0.00000001"))
+    formatted = format(rounded, "f").rstrip("0").rstrip(".")
+    return formatted or "0"
+
+
+def _format_optional_datetime(value: datetime | None) -> str:
+    if value is None:
+        return "n/a"
+    return parse_dt(value).isoformat().replace("+00:00", "Z")

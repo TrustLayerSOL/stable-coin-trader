@@ -192,3 +192,128 @@ def test_cli_fetch_public_snapshots_writes_kraken_and_coinbase_json(
             "observed_at": "2026-05-13T13:00:01Z",
         },
     ]
+
+
+def test_cli_observe_spreads_appends_jsonl_and_prints_summary(tmp_path) -> None:
+    market_data = tmp_path / "public_snapshots.json"
+    output = tmp_path / "spread_observations.jsonl"
+    market_data.write_text(
+        json.dumps(
+            [
+                {
+                    "venue": "kraken",
+                    "symbol": "USDC/USD",
+                    "bid": "0.9994",
+                    "ask": "0.9996",
+                    "bid_size": "2000",
+                    "ask_size": "2000",
+                    "observed_at": "2026-05-13T13:00:00Z",
+                },
+                {
+                    "venue": "coinbase",
+                    "symbol": "USDC/USD",
+                    "bid": "1.0000",
+                    "ask": "1.0002",
+                    "bid_size": "2000",
+                    "ask_size": "2000",
+                    "observed_at": "2026-05-13T13:00:01Z",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "observe-spreads",
+            "--market-data",
+            str(market_data),
+            "--output",
+            str(output),
+            "--size",
+            "1000",
+            "--fee-bps",
+            "0",
+            "--slippage-bps",
+            "0",
+            "--max-snapshot-lag-seconds",
+            "5",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "spread observations recorded" in result.output
+    assert "count=2" in result.output
+    assert "profitable=1" in result.output
+    assert "best=kraken->coinbase USDC/USD" in result.output
+    assert "first=2026-05-13T13:00:01Z" in result.output
+    assert "last=2026-05-13T13:00:01Z" in result.output
+
+    lines = output.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert json.loads(lines[0])["buy_venue"] == "kraken"
+
+
+def test_cli_report_spreads_summarizes_jsonl_history(tmp_path) -> None:
+    market_data = tmp_path / "public_snapshots.json"
+    observations = tmp_path / "spread_observations.jsonl"
+    market_data.write_text(
+        json.dumps(
+            [
+                {
+                    "venue": "kraken",
+                    "symbol": "USDC/USD",
+                    "bid": "0.9994",
+                    "ask": "0.9996",
+                    "bid_size": "2000",
+                    "ask_size": "2000",
+                    "observed_at": "2026-05-13T13:00:00Z",
+                },
+                {
+                    "venue": "coinbase",
+                    "symbol": "USDC/USD",
+                    "bid": "1.0000",
+                    "ask": "1.0002",
+                    "bid_size": "2000",
+                    "ask_size": "2000",
+                    "observed_at": "2026-05-13T13:00:01Z",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    create_result = CliRunner().invoke(
+        app,
+        [
+            "observe-spreads",
+            "--market-data",
+            str(market_data),
+            "--output",
+            str(observations),
+            "--size",
+            "1000",
+            "--fee-bps",
+            "0",
+            "--slippage-bps",
+            "0",
+        ],
+    )
+    assert create_result.exit_code == 0
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "report-spreads",
+            "--input",
+            str(observations),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "spread observation report" in result.output
+    assert "count=2" in result.output
+    assert "profitable=1" in result.output
+    assert "best=kraken->coinbase USDC/USD" in result.output
+    assert "first=2026-05-13T13:00:01Z" in result.output
+    assert "last=2026-05-13T13:00:01Z" in result.output
