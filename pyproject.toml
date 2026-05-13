@@ -22,6 +22,9 @@ dev = [
 [project.scripts]
 stable-coin-trader = "stable_coin_trader.cli:app"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/stable_coin_trader"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
