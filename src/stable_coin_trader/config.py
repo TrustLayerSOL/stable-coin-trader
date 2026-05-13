@@ -6,7 +6,7 @@ from os import PathLike
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 NonEmptyString = Annotated[
     str,
@@ -15,6 +15,8 @@ NonEmptyString = Annotated[
 
 
 class BotConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     mode: Literal["paper"]
     ledger_path: Path
     market_data_path: Path
@@ -25,7 +27,7 @@ class BotConfig(BaseModel):
     max_order_usd: Decimal = Field(gt=0)
     max_position_usd: Decimal = Field(gt=0)
     min_edge_bps: Decimal = Field(ge=0)
-    stale_after_seconds: int = Field(gt=0)
+    stale_after_seconds: int = Field(gt=0, strict=True)
     depeg_threshold_bps: Decimal = Field(gt=0)
     daily_loss_limit_usd: Decimal = Field(gt=0)
 
@@ -37,5 +39,5 @@ class BotConfig(BaseModel):
 
 
 def load_config(path: str | PathLike[str]) -> BotConfig:
-    data: dict[str, Any] = json.loads(Path(path).read_text())
-    return BotConfig(**data)
+    data: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    return BotConfig.model_validate(data)

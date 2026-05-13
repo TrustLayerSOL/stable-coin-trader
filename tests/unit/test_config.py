@@ -7,33 +7,109 @@ from pydantic import ValidationError
 from stable_coin_trader.config import BotConfig, load_config
 
 
+def valid_config_data(tmp_path) -> dict[str, object]:
+    return {
+        "mode": "paper",
+        "ledger_path": str(tmp_path / "paper.sqlite3"),
+        "market_data_path": "data/fixtures/market_snapshots.json",
+        "research_signals_path": "data/fixtures/research_signals.json",
+        "base_currency": "USD",
+        "symbols": ["USDC/USD"],
+        "venues": ["coinbase", "kraken"],
+        "max_order_usd": "1000",
+        "max_position_usd": "5000",
+        "min_edge_bps": "2.5",
+        "stale_after_seconds": 20,
+        "depeg_threshold_bps": "30",
+        "daily_loss_limit_usd": "25",
+    }
+
+
 def test_load_config_from_json(tmp_path) -> None:
     path = tmp_path / "paper.json"
-    path.write_text(
-        json.dumps(
-            {
-                "mode": "paper",
-                "ledger_path": str(tmp_path / "paper.sqlite3"),
-                "market_data_path": "data/fixtures/market_snapshots.json",
-                "research_signals_path": "data/fixtures/research_signals.json",
-                "base_currency": "USD",
-                "symbols": ["USDC/USD"],
-                "venues": ["coinbase", "kraken"],
-                "max_order_usd": "1000",
-                "max_position_usd": "5000",
-                "min_edge_bps": "2.5",
-                "stale_after_seconds": 20,
-                "depeg_threshold_bps": "30",
-                "daily_loss_limit_usd": "25",
-            }
-        )
-    )
+    path.write_text(json.dumps(valid_config_data(tmp_path)))
 
     config = load_config(path)
 
     assert config.mode == "paper"
     assert config.max_order_usd == Decimal("1000")
     assert config.min_edge_bps == Decimal("2.5")
+
+
+def test_config_rejects_unknown_keys(tmp_path) -> None:
+    data = valid_config_data(tmp_path) | {"unexpected": "value"}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+def test_config_rejects_boolean_stale_after_seconds(tmp_path) -> None:
+    data = valid_config_data(tmp_path) | {"stale_after_seconds": True}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+def test_config_rejects_empty_symbols(tmp_path) -> None:
+    data = valid_config_data(tmp_path) | {"symbols": []}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("symbols", [" "]),
+        ("symbols", ["USDC/USD", "\t"]),
+        ("venues", [" "]),
+        ("venues", ["coinbase", "\n"]),
+    ],
+)
+def test_config_rejects_blank_symbols_and_venues(tmp_path, field, value) -> None:
+    data = valid_config_data(tmp_path) | {field: value}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("max_order_usd", "0"),
+        ("max_order_usd", "-1"),
+        ("max_position_usd", "0"),
+        ("max_position_usd", "-1"),
+        ("depeg_threshold_bps", "0"),
+        ("depeg_threshold_bps", "-1"),
+        ("daily_loss_limit_usd", "0"),
+        ("daily_loss_limit_usd", "-1"),
+        ("min_edge_bps", "-1"),
+    ],
+)
+def test_config_rejects_invalid_money_limits(tmp_path, field, value) -> None:
+    data = valid_config_data(tmp_path) | {field: value}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+def test_config_rejects_max_order_above_max_position(tmp_path) -> None:
+    data = valid_config_data(tmp_path) | {
+        "max_order_usd": "5001",
+        "max_position_usd": "5000",
+    }
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+def test_load_config_rejects_malformed_top_level_json_shape(tmp_path) -> None:
+    path = tmp_path / "paper.json"
+    path.write_text("[]")
+
+    with pytest.raises(ValidationError):
+        load_config(path)
 
 
 def test_config_rejects_live_mode() -> None:
