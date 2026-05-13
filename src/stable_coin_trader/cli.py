@@ -28,6 +28,7 @@ from stable_coin_trader.spread_observations import (
     load_spread_observations,
     summarize_spread_observations,
 )
+from stable_coin_trader.spread_sampling import SpreadSamplingResult, sample_spreads
 
 app = typer.Typer(
     help="Risk-aware stablecoin paper trading bot.",
@@ -209,6 +210,87 @@ def report_spreads_command(
     )
 
 
+@app.command("sample-spreads")
+def sample_spreads_command(
+    output: Path = typer.Option(
+        Path("runtime/spread_observations.jsonl"),
+        "--output",
+        help="Append-only spread observation JSONL output.",
+    ),
+    kraken_pair: list[str] = typer.Option(
+        [],
+        "--kraken-pair",
+        help="Kraken pair mapping as KRAKEN_PAIR:BOT_SYMBOL.",
+    ),
+    coinbase_product: list[str] = typer.Option(
+        [],
+        "--coinbase-product",
+        help="Coinbase product mapping as PRODUCT_ID:BOT_SYMBOL.",
+    ),
+    samples: int = typer.Option(
+        120,
+        "--samples",
+        help="Number of public market-data samples to collect.",
+    ),
+    interval_seconds: str = typer.Option(
+        "30",
+        "--interval-seconds",
+        help="Seconds to wait between samples.",
+    ),
+    size: str = typer.Option(
+        "1000",
+        "--size",
+        help="Requested stablecoin size for each directional observation.",
+    ),
+    fee_bps: str = typer.Option(
+        "0",
+        "--fee-bps",
+        help="Estimated fee basis points charged on both legs.",
+    ),
+    slippage_bps: str = typer.Option(
+        "0.5",
+        "--slippage-bps",
+        help="Estimated slippage basis points charged on both legs.",
+    ),
+    max_snapshot_lag_seconds: str = typer.Option(
+        "5",
+        "--max-snapshot-lag-seconds",
+        help="Maximum allowed time gap between buy and sell snapshots.",
+    ),
+) -> None:
+    try:
+        kraken_mappings = [parse_pair_mapping(raw_pair) for raw_pair in kraken_pair]
+        coinbase_mappings = [
+            parse_product_mapping(raw_product)
+            for raw_product in coinbase_product
+        ]
+        result = sample_spreads(
+            kraken_mappings=kraken_mappings,
+            coinbase_mappings=coinbase_mappings,
+            output_path=output,
+            samples=samples,
+            interval_seconds=_parse_decimal_option(
+                "interval_seconds",
+                interval_seconds,
+            ),
+            size=_parse_decimal_option("size", size),
+            fee_bps=_parse_decimal_option("fee_bps", fee_bps),
+            slippage_bps=_parse_decimal_option("slippage_bps", slippage_bps),
+            max_snapshot_lag_seconds=_parse_decimal_option(
+                "max_snapshot_lag_seconds",
+                max_snapshot_lag_seconds,
+            ),
+            kraken_client=KrakenPublicMarketDataClient(),
+            coinbase_client=CoinbasePublicMarketDataClient(),
+            on_sample_result=_print_sample_result,
+        )
+    except (OSError, OverflowError, ValueError) as exc:
+        console.print(f"spread sampling failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+    _print_sampling_result(output=output, result=result)
+
+
 def _parse_decimal_option(name: str, raw_value: str) -> Decimal:
     try:
         return Decimal(raw_value)
@@ -246,3 +328,33 @@ def _format_optional_datetime(value: datetime | None) -> str:
     if value is None:
         return "n/a"
     return parse_dt(value).isoformat().replace("+00:00", "Z")
+
+
+def _print_sampling_result(output: Path, result: SpreadSamplingResult) -> None:
+    console.print(
+        f"spread sampling complete path={output} "
+        f"samples={result.samples_requested} "
+        f"successful={result.samples_successful} "
+        f"failed={result.samples_failed} "
+        f"observations={result.observations_written}"
+    )
+    _print_spread_summary(prefix="spread sampling summary", summary=result.summary)
+
+
+def _print_sample_result(
+    sample_number: int,
+    successful: bool,
+    observations_written: int,
+    reason: str | None,
+) -> None:
+    if successful:
+        console.print(
+            f"sample={sample_number} status=successful "
+            f"observations={observations_written}"
+        )
+        return
+
+    console.print(
+        f"sample={sample_number} status=failed "
+        f"observations={observations_written} reason={reason}"
+    )

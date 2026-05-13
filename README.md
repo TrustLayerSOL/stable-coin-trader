@@ -2,7 +2,7 @@
 
 Professional-grade, risk-aware stablecoin trading bot for proprietary capital.
 
-Current phase: public Kraken/Coinbase market data plus paper-only spread observation reporting. The project does not contain live trading code yet.
+Current phase: public Kraken/Coinbase market data plus paper-only spread sampling and observation reporting. The project does not contain live trading code yet.
 
 The project goal is to find and validate repeatable stablecoin trading edges that can generate consistent risk-adjusted profits after fees, slippage, stale-data controls, and operational constraints. Profitability is not assumed; it must be proven through paper trading, logs, and small controlled live experiments before capital is scaled.
 
@@ -90,6 +90,24 @@ Observation commands do not create trades. They record both profitable and
 unprofitable directional routes so the project can measure whether an edge
 exists over time.
 
+Sample spreads repeatedly:
+
+```bash
+stable-coin-trader sample-spreads \
+  --kraken-pair USDCEUR:USDC/EUR \
+  --coinbase-product USDC-EUR:USDC/EUR \
+  --output runtime/spread_observations.jsonl \
+  --samples 120 \
+  --interval-seconds 30 \
+  --size 1000 \
+  --fee-bps 0 \
+  --slippage-bps 0.5
+```
+
+Sampling is finite and paper-only. It fetches public market data, appends
+observations with a local file lock and atomic replace, prints per-sample
+progress, counts failures, and stops.
+
 ## Current Layout
 
 ```text
@@ -105,6 +123,7 @@ src/stable_coin_trader/market_data.py     Fixture market-data loader
 src/stable_coin_trader/research.py        Fixture research-signal loader
 src/stable_coin_trader/opportunities.py   Stablecoin spread opportunity engine
 src/stable_coin_trader/spread_observations.py Spread measurement and reporting
+src/stable_coin_trader/spread_sampling.py Repeated public spread sampler
 src/stable_coin_trader/risk.py            Risk decision engine
 src/stable_coin_trader/paper.py           Paper executor
 src/stable_coin_trader/engine.py          One-cycle orchestration

@@ -1,3 +1,4 @@
+import fcntl
 import json
 from decimal import Decimal
 
@@ -206,6 +207,67 @@ def test_append_and_load_spread_observations_round_trip_jsonl(tmp_path) -> None:
         observations[0].id,
     ]
     assert loaded[0].net_profit == Decimal("0.4000")
+
+
+def test_append_spread_observations_keeps_existing_file_when_replace_fails(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    path = tmp_path / "observations.jsonl"
+    path.write_text("existing\n", encoding="utf-8")
+    observations = build_spread_observations(
+        snapshots=[
+            make_snapshot(venue="kraken", bid="0.9994", ask="0.9996"),
+            make_snapshot(venue="coinbase", bid="1.0000", ask="1.0002"),
+        ],
+        size=Decimal("1000"),
+        fee_bps=Decimal("0"),
+        slippage_bps=Decimal("0"),
+        max_snapshot_lag_seconds=Decimal("5"),
+    )
+
+    def fail_replace(source, destination) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(
+        "stable_coin_trader.spread_observations.os.replace",
+        fail_replace,
+    )
+
+    with pytest.raises(OSError, match="disk full"):
+        append_spread_observations(path, observations)
+
+    assert path.read_text(encoding="utf-8") == "existing\n"
+
+
+def test_append_spread_observations_locks_during_atomic_replace(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    path = tmp_path / "observations.jsonl"
+    observations = build_spread_observations(
+        snapshots=[
+            make_snapshot(venue="kraken", bid="0.9994", ask="0.9996"),
+            make_snapshot(venue="coinbase", bid="1.0000", ask="1.0002"),
+        ],
+        size=Decimal("1000"),
+        fee_bps=Decimal("0"),
+        slippage_bps=Decimal("0"),
+        max_snapshot_lag_seconds=Decimal("5"),
+    )
+    lock_operations = []
+
+    def track_flock(lock_file, operation) -> None:
+        lock_operations.append(operation)
+
+    monkeypatch.setattr(
+        "stable_coin_trader.spread_observations.fcntl.flock",
+        track_flock,
+    )
+
+    append_spread_observations(path, observations)
+
+    assert lock_operations == [fcntl.LOCK_EX, fcntl.LOCK_UN]
 
 
 def test_load_spread_observations_rejects_invalid_jsonl(tmp_path) -> None:
