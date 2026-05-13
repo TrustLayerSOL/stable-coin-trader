@@ -133,3 +133,12 @@
 - Verification completed: full automated test suite passed with 347 tests, whitespace check passed, and a live one-sample public Kraken/Coinbase smoke run completed.
 - The live smoke sample recorded 2 observations and 0 profitable routes after configured slippage.
 - Opened draft PR #5: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/5`.
+
+### Post-Merge Sampling Pass
+
+- Merged the full PR stack into `main` in order: PR #1 core skeleton, PR #2 Kraken public market data, PR #3 Coinbase public market data, PR #4 spread observation reporting, and PR #5 spread sampling.
+- Aligned the local checkout to merged `main` and verified the full automated test suite: 347 tests passed.
+- Ran a bounded public Kraken/Coinbase USDC/EUR sampling pass from merged `main`: 20 samples, 20 successes, 0 failures, and 40 observations.
+- Built-in spread report result: 0 profitable observations after 0.5 bps slippage, best route `kraken->coinbase USDC/EUR`, best edge `-1` bps, average edge `-2.20053077` bps.
+- Route breakdown: `coinbase->kraken USDC/EUR` averaged `-2.054072046300159862462471311` bps, and `kraken->coinbase USDC/EUR` averaged `-2.346989495561917200403584050` bps.
+- Current conclusion: this short USDC/EUR sample shows no tradable edge after costs; continue longer observation windows before adding private APIs or live execution.

@@ -8,9 +8,8 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: spread sampling runner completed on branch
-`feature/spread-sampling-runner`; draft PR #5 is open against
-`feature/spread-observation-reporting`.
+Current phase: public Kraken/Coinbase spread measurement on `main`.
+The initial PR stack has been merged through the spread sampling runner.
 
 The near-term architecture remains phase 2 first: deterministic stablecoin
 spread paper trading, followed later by the phase 3 research/news layer after
@@ -34,6 +33,8 @@ Completed:
 - Opened draft PR #4 for spread observation reporting.
 - Started the spread sampling runner.
 - Opened draft PR #5 for the spread sampling runner.
+- Merged PRs #1-#5 into `main`.
+- Ran the first merged-main public spread sampling pass: 20 samples, 40 observations, 0 profitable routes after 0.5 bps slippage.
 
 Task 10 hardening completed:
 
@@ -170,8 +171,8 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Merge the stacked PRs in order: core skeleton, Kraken public market data, Coinbase public market data, spread observation reporting, then spread sampling.
-2. Run repeated public Kraken/Coinbase spread observations before any live trading.
+1. Run longer public Kraken/Coinbase spread observations before any live trading.
+2. Add an edge analysis report that summarizes route-level hit rate, best/worst edge, average edge, failure rate, and cost sensitivity.
 3. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
 4. Add exchange status and research-source ingestion after measurement is running.
 5. Add storage rotation or a database-backed observation store if JSON Lines history grows beyond practical file size.
