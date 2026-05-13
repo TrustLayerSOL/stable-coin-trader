@@ -5,6 +5,11 @@ import typer
 
 from stable_coin_trader.config import load_config
 from stable_coin_trader.engine import run_once
+from stable_coin_trader.kraken import (
+    KrakenPublicMarketDataClient,
+    parse_pair_mapping,
+    write_market_snapshots,
+)
 
 app = typer.Typer(
     help="Risk-aware stablecoin paper trading bot.",
@@ -32,4 +37,30 @@ def run_once_command(
         f"approved={result.approved_trades} "
         f"rejected={result.rejected_trades} "
         f"fills={result.paper_fills}"
+    )
+
+
+@app.command("fetch-kraken-snapshots")
+def fetch_kraken_snapshots_command(
+    output: Path = typer.Option(..., "--output", help="Output market snapshot JSON."),
+    pair: list[str] = typer.Option(
+        ["USDCUSD:USDC/USD"],
+        "--pair",
+        help="Kraken pair mapping as KRAKEN_PAIR:BOT_SYMBOL.",
+    ),
+) -> None:
+    try:
+        mappings = [parse_pair_mapping(raw_pair) for raw_pair in pair]
+        client = KrakenPublicMarketDataClient()
+        snapshots = [
+            client.fetch_order_book_snapshot(mapping)
+            for mapping in mappings
+        ]
+        write_market_snapshots(output, snapshots)
+    except (ConnectionError, ValueError) as exc:
+        console.print(f"kraken snapshot fetch failed: {exc}")
+        raise typer.Exit(code=1) from exc
+
+    console.print(
+        f"kraken snapshots written path={output} count={len(snapshots)}"
     )
