@@ -21,6 +21,10 @@ NonEmptyString = Annotated[
 ]
 
 
+def _normalized_path_string(path: Path) -> str:
+    return os.path.normpath(os.fspath(path))
+
+
 class BotConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -57,9 +61,24 @@ class BotConfig(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_order_limit(self) -> "BotConfig":
+    def validate_model_constraints(self) -> "BotConfig":
         if self.max_order_usd > self.max_position_usd:
             raise ValueError("max_order_usd cannot exceed max_position_usd")
+
+        path_fields = (
+            ("ledger_path", self.ledger_path),
+            ("market_data_path", self.market_data_path),
+            ("research_signals_path", self.research_signals_path),
+        )
+        seen_paths: dict[str, str] = {}
+        for field_name, path in path_fields:
+            normalized_path = _normalized_path_string(path)
+            if normalized_path in seen_paths:
+                raise ValueError(
+                    f"{field_name} cannot overlap with {seen_paths[normalized_path]}"
+                )
+            seen_paths[normalized_path] = field_name
+
         return self
 
 

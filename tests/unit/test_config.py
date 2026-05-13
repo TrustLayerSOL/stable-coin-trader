@@ -73,6 +73,20 @@ def test_config_rejects_boolean_stale_after_seconds(tmp_path) -> None:
         BotConfig.model_validate(data)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("stale_after_seconds", "20"),
+        ("stale_after_seconds", 20.0),
+    ],
+)
+def test_config_rejects_non_integer_stale_after_seconds(tmp_path, field, value) -> None:
+    data = valid_config_data(tmp_path) | {field: value}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
 def test_config_rejects_empty_symbols(tmp_path) -> None:
     data = valid_config_data(tmp_path) | {"symbols": []}
 
@@ -136,6 +150,35 @@ def test_config_rejects_blank_symbols_and_venues(tmp_path, field, value) -> None
 )
 def test_config_rejects_invalid_paths(tmp_path, field, value) -> None:
     data = valid_config_data(tmp_path) | {field: value}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("first_field", "second_field"),
+    [
+        ("ledger_path", "market_data_path"),
+        ("ledger_path", "research_signals_path"),
+        ("market_data_path", "research_signals_path"),
+    ],
+)
+def test_config_rejects_exact_duplicate_paths(tmp_path, first_field, second_field) -> None:
+    duplicate_path = "runtime/shared-path.json"
+    data = valid_config_data(tmp_path) | {
+        first_field: duplicate_path,
+        second_field: duplicate_path,
+    }
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+def test_config_rejects_normalized_duplicate_paths(tmp_path) -> None:
+    data = valid_config_data(tmp_path) | {
+        "ledger_path": "runtime/paper.sqlite3",
+        "market_data_path": "runtime/../runtime/paper.sqlite3",
+    }
 
     with pytest.raises(ValidationError):
         BotConfig.model_validate(data)
