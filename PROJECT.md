@@ -8,8 +8,8 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: Task 10 / one-cycle paper engine hardening on branch
-`implementation/core-skeleton-paper-loop`.
+Current phase: first public exchange market-data adapter on branch
+`feature/kraken-public-market-data`.
 
 The near-term architecture remains phase 2 first: deterministic stablecoin
 spread paper trading, followed later by the phase 3 research/news layer after
@@ -26,6 +26,7 @@ Completed:
 - Created the first implementation plan: `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
 - Implemented the Python package, safe config loader, domain models, SQLite ledger, fixture loaders, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
 - Added deterministic fixture data and integration tests for the paper loop.
+- Opened draft PR #1 for the core skeleton paper loop.
 
 Task 10 hardening completed:
 
@@ -41,12 +42,18 @@ Task 10 hardening completed:
 - Guard duplicate opportunity fills inside the ledger write transaction for overlapping runs.
 - Verified with the full automated test suite.
 
+Kraken public market-data adapter in progress:
+
+- Fetches public Kraken order-book snapshots from `/0/public/Depth`.
+- Converts top-of-book data into the existing `MarketSnapshot` JSON format.
+- Adds a CLI command to write snapshots to `runtime/kraken_snapshots.json` or another selected path.
+- Does not use Kraken private API keys, balances, orders, or account endpoints.
+
 Still not started:
 
-- No API keys or secrets have been added.
 - No live trading has been enabled.
 - No exchange accounts have been connected.
-- No real exchange market-data adapters have been added.
+- No private exchange API calls have been added.
 
 ## Selected Approach
 
@@ -93,6 +100,7 @@ Approach 3 comes later:
 |       +-- cli.py
 |       +-- config.py
 |       +-- engine.py
+|       +-- kraken.py
 |       +-- ledger.py
 |       +-- market_data.py
 |       +-- models.py
@@ -119,8 +127,8 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Push the implementation branch to GitHub.
-2. Add the first real exchange market-data adapter, likely Kraken or Coinbase.
-3. Keep execution in paper mode while validating spreads, stale-data handling, fees, and ledger behavior.
+1. Verify and publish the Kraken public market-data adapter.
+2. Keep execution in paper mode while validating real Kraken spreads, stale-data handling, fees, and ledger behavior.
+3. Add a second venue adapter for cross-venue live spread comparison.
 4. Add exchange status and research-source ingestion.
 5. Run paper trading before any live trading.

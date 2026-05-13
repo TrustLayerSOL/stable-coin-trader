@@ -2,7 +2,7 @@
 
 Risk-aware stablecoin paper trading bot for proprietary capital.
 
-Current phase: core skeleton and deterministic paper loop. The project does not contain live trading code yet.
+Current phase: core skeleton, deterministic paper loop, and first public exchange market-data adapter. The project does not contain live trading code yet.
 
 Safety rules:
 
@@ -37,6 +37,21 @@ It uses a fixed `run_as_of` timestamp so the fixture replay and audit timestamps
 If you run it again against the same local ledger, already-filled opportunities
 are skipped and the output will show zero new fills.
 
+## Fetch Kraken Public Market Data
+
+Kraken public order-book data does not require API credentials.
+
+```bash
+stable-coin-trader fetch-kraken-snapshots \
+  --pair USDCUSD:USDC/USD \
+  --output runtime/kraken_snapshots.json
+```
+
+Then point a paper config's `market_data_path` at the generated JSON file.
+For real fetched data, remove the fixed fixture `run_as_of` value or set it to
+the fetch time so the engine's stale-data checks use the right clock.
+This fetch command never places orders and does not read private Kraken keys.
+
 ## Current Layout
 
 ```text
@@ -46,6 +61,7 @@ data/fixtures/research_signals.json       Defensive research-signal fixture
 data/fixtures/research_signals_empty.json Demo fixture with no active research signals
 src/stable_coin_trader/config.py          Safe paper config loader
 src/stable_coin_trader/ledger.py          SQLite risk-decision and paper-fill ledger
+src/stable_coin_trader/kraken.py          Kraken public market-data adapter
 src/stable_coin_trader/market_data.py     Fixture market-data loader
 src/stable_coin_trader/research.py        Fixture research-signal loader
 src/stable_coin_trader/opportunities.py   Stablecoin spread opportunity engine

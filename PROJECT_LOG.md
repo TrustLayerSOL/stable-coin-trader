@@ -84,3 +84,12 @@
 - Duplicate opportunity fills are guarded inside the ledger write transaction so overlapping runs cannot both fill the same opportunity.
 - Verification completed: full automated test suite passed with 275 tests.
 - The example CLI run against the existing local `runtime/paper.sqlite3` ledger returned zero new fills, confirming duplicate-fill protection on repeated runs.
+
+### Kraken Public Market Data Adapter
+
+- Started branch `feature/kraken-public-market-data` from the hardened core skeleton.
+- Added a design spec at `docs/superpowers/specs/2026-05-13-kraken-public-market-data-design.md`.
+- Added an implementation plan at `docs/superpowers/plans/2026-05-13-kraken-public-market-data.md`.
+- Scope is public Kraken market data only: no private keys, balances, orders, or live execution.
+- Added `.env.example` placeholders for future Kraken private credentials, but the current adapter does not read them.
+- Added `stable-coin-trader fetch-kraken-snapshots` to write public order-book snapshots in the existing fixture JSON shape.
