@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -32,6 +33,24 @@ def test_load_market_snapshots_filters_symbol_and_venues(tmp_path) -> None:
                 },
                 {
                     "venue": "gemini",
+                    "symbol": "USDC/USD",
+                    "bid": "0.9996",
+                    "ask": "0.9998",
+                    "bid_size": "15000",
+                    "ask_size": "15000",
+                    "observed_at": "2026-05-13T12:00:00Z",
+                },
+                {
+                    "venue": "coinbase",
+                    "symbol": "PYUSD/USD",
+                    "bid": "0.9998",
+                    "ask": "1.0000",
+                    "bid_size": "10000",
+                    "ask_size": "10000",
+                    "observed_at": "2026-05-13T12:00:00Z",
+                },
+                {
+                    "venue": "gemini",
                     "symbol": "PYUSD/USD",
                     "bid": "0.9998",
                     "ask": "1.0000",
@@ -54,8 +73,14 @@ def test_load_market_snapshots_filters_symbol_and_venues(tmp_path) -> None:
     assert snapshots[1].ask == Decimal("0.9997")
 
 
-def test_load_shipped_market_snapshots_fixture() -> None:
-    path = "data/fixtures/market_snapshots.json"
+def test_load_shipped_market_snapshots_fixture(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "data"
+        / "fixtures"
+        / "market_snapshots.json"
+    )
 
     snapshots = load_market_snapshots(
         path,

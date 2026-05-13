@@ -1,7 +1,9 @@
 import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from decimal import Decimal
+from threading import Barrier, BrokenBarrierError
 
 import pytest
 
@@ -44,6 +46,19 @@ def _record_rejected_decision(ledger: Ledger) -> int:
             requires_human_approval=True,
         )
     )
+
+
+class _BarrierLedger(Ledger):
+    def __init__(self, path, barrier: Barrier) -> None:
+        super().__init__(path)
+        self.barrier = barrier
+
+    def _validate_paper_fill_matches_decision(self, *args, **kwargs) -> None:
+        super()._validate_paper_fill_matches_decision(*args, **kwargs)
+        try:
+            self.barrier.wait(timeout=0.2)
+        except BrokenBarrierError:
+            pass
 
 
 def test_ledger_records_risk_decision(tmp_path) -> None:
@@ -174,6 +189,43 @@ def test_ledger_rejects_paper_fill_with_unknown_risk_decision_id(tmp_path) -> No
         )
 
 
+@pytest.mark.parametrize(
+    ("size", "price", "fee", "message"),
+    [
+        (Decimal("0"), Decimal("0.9995"), Decimal("0.20"), "size"),
+        (Decimal("-1"), Decimal("0.9995"), Decimal("0.20"), "size"),
+        (Decimal("1"), Decimal("0"), Decimal("0.20"), "price"),
+        (Decimal("1"), Decimal("-0.9995"), Decimal("0.20"), "price"),
+        (Decimal("1"), Decimal("0.9995"), Decimal("-0.01"), "fee"),
+        (Decimal("NaN"), Decimal("0.9995"), Decimal("0.20"), "size"),
+        (Decimal("1"), Decimal("Infinity"), Decimal("0.20"), "price"),
+        (Decimal("1"), Decimal("0.9995"), Decimal("-Infinity"), "fee"),
+    ],
+)
+def test_ledger_rejects_invalid_paper_fill_numbers(
+    tmp_path,
+    size,
+    price,
+    fee,
+    message,
+) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite3")
+    ledger.initialize()
+    decision_id = _record_approved_decision(ledger)
+
+    with pytest.raises(ValueError, match=message):
+        ledger.record_paper_fill(
+            risk_decision_id=decision_id,
+            opportunity_id="opp-1",
+            venue="kraken",
+            symbol="USDC/USD",
+            side="buy",
+            size=size,
+            price=price,
+            fee=fee,
+        )
+
+
 def test_ledger_rejects_paper_fill_for_rejected_risk_decision(tmp_path) -> None:
     ledger = Ledger(tmp_path / "ledger.sqlite3")
     ledger.initialize()
@@ -297,6 +349,44 @@ def test_ledger_rejects_fill_that_exceeds_approved_size(tmp_path) -> None:
         )
 
 
+def test_ledger_serializes_fill_size_validation(tmp_path) -> None:
+    path = tmp_path / "ledger.sqlite3"
+    ledger = Ledger(path)
+    ledger.initialize()
+    decision_id = _record_approved_decision(ledger)
+    barrier = Barrier(2)
+
+    def record_competing_fill():
+        return _BarrierLedger(path, barrier).record_paper_fill(
+            risk_decision_id=decision_id,
+            opportunity_id="opp-1",
+            venue="kraken",
+            symbol="USDC/USD",
+            side="buy",
+            size=Decimal("600"),
+            price=Decimal("0.9995"),
+            fee=Decimal("0.12"),
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = [
+            future.exception()
+            for future in (
+                executor.submit(record_competing_fill),
+                executor.submit(record_competing_fill),
+            )
+        ]
+
+    rows = ledger.fetch_all("select * from paper_fills")
+    assert len(rows) == 1
+    assert sum(Decimal(row["size"]) for row in rows) <= Decimal("1000")
+    assert sum(error is None for error in outcomes) == 1
+    assert any(
+        isinstance(error, ValueError) and "size" in str(error)
+        for error in outcomes
+    )
+
+
 def test_ledger_upgrades_empty_legacy_paper_fill_schema(tmp_path) -> None:
     path = tmp_path / "ledger.sqlite3"
     with sqlite3.connect(path) as conn:
@@ -336,6 +426,51 @@ def test_ledger_upgrades_empty_legacy_paper_fill_schema(tmp_path) -> None:
 
     columns = [row["name"] for row in ledger.fetch_all("pragma table_info(paper_fills)")]
     assert "risk_decision_id" in columns
+
+
+def test_ledger_rebuilds_empty_malformed_paper_fill_schema(tmp_path) -> None:
+    path = tmp_path / "ledger.sqlite3"
+    with sqlite3.connect(path) as conn:
+        conn.executescript(
+            """
+            create table risk_decisions (
+                id integer primary key autoincrement,
+                created_at text not null,
+                opportunity_id text not null,
+                venue text not null,
+                symbol text not null,
+                side text not null,
+                size text not null,
+                limit_price text not null,
+                approved integer not null,
+                reason text not null,
+                min_edge_bps text not null,
+                requires_human_approval integer not null,
+                active_signal_ids text not null
+            );
+            create table paper_fills (
+                id integer primary key autoincrement,
+                created_at text not null,
+                risk_decision_id integer not null references risk_decisions(id),
+                opportunity_id text not null,
+                venue text not null,
+                symbol text not null,
+                side text not null,
+                size text,
+                price text not null,
+                fee text not null
+            );
+            """
+        )
+
+    ledger = Ledger(path)
+    ledger.initialize()
+
+    columns = {
+        row["name"]: row
+        for row in ledger.fetch_all("pragma table_info(paper_fills)")
+    }
+    assert columns["size"]["notnull"] == 1
 
 
 def test_ledger_rejects_nonempty_legacy_paper_fill_schema(tmp_path) -> None:
@@ -391,7 +526,10 @@ def test_ledger_fetch_all_is_read_only(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="read-only"):
         ledger.fetch_all("delete from risk_decisions")
+    with pytest.raises(ValueError, match="read-only"):
+        ledger.fetch_all("pragma user_version = 3")
 
     rows = ledger.fetch_all("select * from risk_decisions")
     assert len(rows) == 1
     assert rows[0]["id"] == decision_id
+    assert ledger.fetch_all("pragma user_version")[0]["user_version"] == 0

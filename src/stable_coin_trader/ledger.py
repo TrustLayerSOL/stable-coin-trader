@@ -90,7 +90,10 @@ class Ledger:
         price: Decimal,
         fee: Decimal,
     ) -> int:
-        with self.connect() as conn:
+        self._validate_paper_fill_numbers(size=size, price=price, fee=fee)
+        conn = self.connect()
+        try:
+            conn.execute("begin immediate")
             self._validate_paper_fill_matches_decision(
                 conn=conn,
                 risk_decision_id=risk_decision_id,
@@ -128,36 +131,39 @@ class Ledger:
                     str(fee),
                 ),
             )
-            return int(cursor.lastrowid)
+            fill_id = int(cursor.lastrowid)
+            conn.commit()
+            return fill_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _validate_paper_fill_numbers(
+        self,
+        size: Decimal,
+        price: Decimal,
+        fee: Decimal,
+    ) -> None:
+        self._require_positive_decimal("size", size)
+        self._require_positive_decimal("price", price)
+        self._require_nonnegative_decimal("fee", fee)
+
+    def _require_positive_decimal(self, name: str, value: Decimal) -> None:
+        if not value.is_finite() or value <= 0:
+            raise ValueError(f"paper fill {name} must be positive and finite")
+
+    def _require_nonnegative_decimal(self, name: str, value: Decimal) -> None:
+        if not value.is_finite() or value < 0:
+            raise ValueError(f"paper fill {name} must be nonnegative and finite")
 
     def _ensure_paper_fills_schema(self, conn: sqlite3.Connection) -> None:
         if not self._table_exists(conn, "paper_fills"):
             self._create_paper_fills_table(conn)
             return
 
-        columns = {
-            row["name"] for row in conn.execute("pragma table_info(paper_fills)")
-        }
-        required_columns = {
-            "id",
-            "created_at",
-            "risk_decision_id",
-            "opportunity_id",
-            "venue",
-            "symbol",
-            "side",
-            "size",
-            "price",
-            "fee",
-        }
-        foreign_keys = list(conn.execute("pragma foreign_key_list(paper_fills)"))
-        has_risk_decision_fk = any(
-            row["from"] == "risk_decision_id"
-            and row["table"] == "risk_decisions"
-            and row["to"] == "id"
-            for row in foreign_keys
-        )
-        if required_columns.issubset(columns) and has_risk_decision_fk:
+        if self._paper_fills_schema_is_valid(conn):
             return
 
         row_count = conn.execute("select count(*) from paper_fills").fetchone()[0]
@@ -169,6 +175,44 @@ class Ledger:
 
         conn.execute("drop table paper_fills")
         self._create_paper_fills_table(conn)
+
+    def _paper_fills_schema_is_valid(self, conn: sqlite3.Connection) -> bool:
+        expected_columns = {
+            "id": ("integer", 0, 1),
+            "created_at": ("text", 1, 0),
+            "risk_decision_id": ("integer", 1, 0),
+            "opportunity_id": ("text", 1, 0),
+            "venue": ("text", 1, 0),
+            "symbol": ("text", 1, 0),
+            "side": ("text", 1, 0),
+            "size": ("text", 1, 0),
+            "price": ("text", 1, 0),
+            "fee": ("text", 1, 0),
+        }
+        columns = {
+            row["name"]: row for row in conn.execute("pragma table_info(paper_fills)")
+        }
+        if set(columns) != set(expected_columns):
+            return False
+
+        for name, (expected_type, expected_notnull, expected_pk) in (
+            expected_columns.items()
+        ):
+            column = columns[name]
+            if column["type"].lower() != expected_type:
+                return False
+            if int(column["notnull"]) != expected_notnull:
+                return False
+            if int(column["pk"]) != expected_pk:
+                return False
+
+        foreign_keys = list(conn.execute("pragma foreign_key_list(paper_fills)"))
+        return any(
+            row["from"] == "risk_decision_id"
+            and row["table"] == "risk_decisions"
+            and row["to"] == "id"
+            for row in foreign_keys
+        )
 
     def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
         row = conn.execute(
@@ -287,8 +331,23 @@ class Ledger:
             )
 
     def fetch_all(self, sql: str) -> list[sqlite3.Row]:
-        statement = sql.strip().split(maxsplit=1)[0].lower() if sql.strip() else ""
-        if statement not in {"select", "pragma"}:
+        if not self._is_read_only_sql(sql):
             raise ValueError("fetch_all is read-only")
         with self.connect() as conn:
             return list(conn.execute(sql))
+
+    def _is_read_only_sql(self, sql: str) -> bool:
+        statement = sql.strip()
+        if statement.endswith(";"):
+            statement = statement[:-1].strip()
+        if not statement or ";" in statement:
+            return False
+
+        lowered = statement.lower()
+        if lowered.startswith("select "):
+            return True
+        if lowered == "pragma user_version":
+            return True
+        return lowered.startswith("pragma table_info(") or lowered.startswith(
+            "pragma foreign_key_list("
+        )
