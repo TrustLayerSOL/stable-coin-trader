@@ -11,6 +11,7 @@ from stable_coin_trader.coinbase import (
     parse_product_mapping,
 )
 from stable_coin_trader.config import load_config
+from stable_coin_trader.dashboard import run_dashboard_server
 from stable_coin_trader.engine import run_once
 from stable_coin_trader.kraken import (
     KrakenPublicMarketDataClient,
@@ -289,6 +290,51 @@ def sample_spreads_command(
         raise typer.Exit(code=1) from exc
 
     _print_sampling_result(output=output, result=result)
+
+
+@app.command("dashboard")
+def dashboard_command(
+    observations: Path = typer.Option(
+        Path("runtime/spread_observations.jsonl"),
+        "--observations",
+        help="Spread observation JSONL file to watch.",
+    ),
+    log: Path = typer.Option(
+        Path("runtime/logs/spread_sampling.log"),
+        "--log",
+        help="Sampler log file to show.",
+    ),
+    expected_samples: int | None = typer.Option(
+        None,
+        "--expected-samples",
+        help="Expected sample count for progress display.",
+    ),
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help="Dashboard host.",
+    ),
+    port: int = typer.Option(
+        8777,
+        "--port",
+        help="Dashboard port.",
+    ),
+) -> None:
+    if expected_samples is not None and expected_samples <= 0:
+        console.print("dashboard failed: expected_samples must be positive")
+        raise typer.Exit(code=1)
+    try:
+        console.print(f"stablecoin dashboard running url=http://{host}:{port}")
+        run_dashboard_server(
+            observations_path=observations,
+            log_path=log,
+            expected_samples=expected_samples,
+            host=host,
+            port=port,
+        )
+    except (OSError, ValueError) as exc:
+        console.print(f"dashboard failed: {exc}")
+        raise typer.Exit(code=1) from exc
 
 
 def _parse_decimal_option(name: str, raw_value: str) -> Decimal:

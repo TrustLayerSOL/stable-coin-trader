@@ -531,3 +531,46 @@ def test_cli_sample_spreads_reports_output_write_failure(
 
     assert result.exit_code == 1
     assert "spread sampling failed: disk full" in result.output
+
+
+def test_cli_dashboard_starts_read_only_observer(monkeypatch, tmp_path) -> None:
+    calls = []
+
+    def fake_run_dashboard_server(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(
+        "stable_coin_trader.cli.run_dashboard_server",
+        fake_run_dashboard_server,
+    )
+    observations = tmp_path / "observations.jsonl"
+    log = tmp_path / "sampler.log"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "dashboard",
+            "--observations",
+            str(observations),
+            "--log",
+            str(log),
+            "--expected-samples",
+            "240",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8777",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "stablecoin dashboard running url=http://127.0.0.1:8777" in result.output
+    assert calls == [
+        {
+            "observations_path": observations,
+            "log_path": log,
+            "expected_samples": 240,
+            "host": "127.0.0.1",
+            "port": 8777,
+        }
+    ]

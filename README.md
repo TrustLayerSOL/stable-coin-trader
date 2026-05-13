@@ -1,10 +1,19 @@
 # Stable Coin Trader
 
-Professional-grade, risk-aware stablecoin trading bot for proprietary capital.
+Professional-grade Adaptive Liquidity Intelligence Engine for proprietary capital.
 
 Current phase: public Kraken/Coinbase market data plus paper-only spread sampling and observation reporting. The project does not contain live trading code yet.
 
-The project goal is to find and validate repeatable stablecoin trading edges that can generate consistent risk-adjusted profits after fees, slippage, stale-data controls, and operational constraints. Profitability is not assumed; it must be proven through paper trading, logs, and small controlled live experiments before capital is scaled.
+The project goal is to find and validate repeatable liquidity edges that can generate consistent risk-adjusted profits after fees, slippage, stale-data controls, inventory constraints, funding costs, venue risk, and operational constraints. Profitability is not assumed; it must be proven through paper trading, logs, and small controlled live experiments before capital is scaled.
+
+The long-term architecture is one unified system, not separate bots:
+
+- Market data and normalization.
+- Pricing engine.
+- Strategy modules for arbitrage, funding-rate/basis, DEX/CEX, market making, momentum, and inventory hedging.
+- Unified inventory and risk engine.
+- Paper/live execution routing.
+- Ledger, analytics, and GUI operations tooling.
 
 Safety rules:
 
@@ -12,6 +21,7 @@ Safety rules:
 - Paper mode first.
 - Consistent profit is the goal, not an assumption.
 - Risk engine approves every proposed trade.
+- Strategy modules cannot bypass inventory, risk, execution controls, or the ledger.
 - Research signals can reduce risk, pause trading, or require review, but cannot originate trades.
 
 ## Local Setup
@@ -108,6 +118,21 @@ Sampling is finite and paper-only. It fetches public market data, appends
 observations with a local file lock and atomic replace, prints per-sample
 progress, counts failures, and stops.
 
+## Temporary Observer Dashboard
+
+Start a read-only local dashboard for an active observation file:
+
+```bash
+stable-coin-trader dashboard \
+  --observations runtime/spread_observations_20260513_2h_canary.jsonl \
+  --log runtime/logs/spread_sampling_20260513_2h_canary.log \
+  --expected-samples 240 \
+  --port 8777
+```
+
+Then open `http://127.0.0.1:8777/`. The dashboard only reads local JSON Lines
+and log files. It does not read credentials or place trades.
+
 ## Current Layout
 
 ```text
@@ -117,6 +142,7 @@ data/fixtures/research_signals.json       Defensive research-signal fixture
 data/fixtures/research_signals_empty.json Demo fixture with no active research signals
 src/stable_coin_trader/config.py          Safe paper config loader
 src/stable_coin_trader/coinbase.py        Coinbase public market-data adapter
+src/stable_coin_trader/dashboard.py       Temporary read-only observer dashboard
 src/stable_coin_trader/ledger.py          SQLite risk-decision and paper-fill ledger
 src/stable_coin_trader/kraken.py          Kraken public market-data adapter
 src/stable_coin_trader/market_data.py     Fixture market-data loader
