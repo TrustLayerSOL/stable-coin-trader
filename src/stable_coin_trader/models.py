@@ -5,9 +5,12 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
-NonEmptyString = Annotated[str, Field(min_length=1)]
+NonEmptyString = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1),
+]
 
 
 def utc_now() -> datetime:
@@ -18,7 +21,9 @@ def parse_dt(value: datetime | str) -> datetime:
     if isinstance(value, datetime):
         parsed = value
     elif isinstance(value, str):
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if value.endswith("Z"):
+            value = f"{value[:-1]}+00:00"
+        parsed = datetime.fromisoformat(value)
     else:
         raise ValueError("expected datetime or ISO datetime string")
     if parsed.tzinfo is None:
@@ -135,6 +140,12 @@ class ResearchSignal(BaseModel):
     def parse_datetimes(cls, value: datetime | str) -> datetime:
         return parse_dt(value)
 
+    @model_validator(mode="after")
+    def validate_timeline(self) -> "ResearchSignal":
+        if self.published_at > self.observed_at:
+            raise ValueError("published_at cannot be after observed_at")
+        return self
+
     def is_expired(self, now: datetime | None = None) -> bool:
         current = now or utc_now()
         current = parse_dt(current)
@@ -154,7 +165,7 @@ class RiskDecision(BaseModel):
     trade: ProposedTrade
     approved: bool
     reason: NonEmptyString
-    min_edge_bps: Decimal = Decimal("0")
+    min_edge_bps: Decimal = Field(default=Decimal("0"), ge=0)
     requires_human_approval: bool = False
     active_signal_ids: list[NonEmptyString] = Field(default_factory=list)
 

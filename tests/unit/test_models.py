@@ -68,6 +68,11 @@ def test_parse_dt_handles_trailing_z_and_normalizes_to_utc() -> None:
     assert naive == expected
 
 
+def test_parse_dt_only_treats_trailing_z_as_utc() -> None:
+    with pytest.raises(ValueError):
+        parse_dt("2026-05-13ZT12:00:00Z")
+
+
 def test_market_snapshot_calculates_mid_price() -> None:
     snapshot = MarketSnapshot(
         venue="coinbase",
@@ -407,6 +412,54 @@ def test_models_reject_empty_identity_and_reason_strings(
 ) -> None:
     with pytest.raises(ValidationError):
         model_factory()
+
+
+@pytest.mark.parametrize(
+    "model_factory",
+    [
+        lambda: MarketSnapshot(
+            venue="   ",
+            symbol="USDC/USD",
+            bid=Decimal("0.9998"),
+            ask=Decimal("1.0000"),
+            bid_size=Decimal("50000"),
+            ask_size=Decimal("75000"),
+            observed_at="2026-05-13T12:00:00Z",
+        ),
+        lambda: ProposedTrade(
+            opportunity_id="opp-1",
+            side="buy",
+            venue="kraken",
+            symbol="   ",
+            size=Decimal("1000"),
+            limit_price=Decimal("0.9995"),
+        ),
+        lambda: make_research_signal(source_url="   "),
+        lambda: RiskDecision.reject(trade=make_trade(), reason="   "),
+    ],
+)
+def test_models_reject_whitespace_only_identity_and_reason_strings(
+    model_factory: Callable[[], object],
+) -> None:
+    with pytest.raises(ValidationError):
+        model_factory()
+
+
+def test_risk_decision_rejects_negative_min_edge_bps() -> None:
+    with pytest.raises(ValidationError):
+        RiskDecision.reject(
+            trade=make_trade(),
+            reason="edge below threshold",
+            min_edge_bps=Decimal("-0.01"),
+        )
+
+
+def test_research_signal_rejects_published_after_observed() -> None:
+    with pytest.raises(ValidationError):
+        make_research_signal(
+            observed_at="2026-05-13T12:00:00Z",
+            published_at="2026-05-13T12:00:01Z",
+        )
 
 
 def test_risk_decision_explains_rejection() -> None:
