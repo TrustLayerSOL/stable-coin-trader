@@ -2,13 +2,14 @@
 
 ## Purpose
 
-Build a proprietary stablecoin trading bot for the owner's own capital. The initial product direction is a risk-aware stablecoin trader: USDC-first, spot-only, paper-trading first, with market research and news signals used as a defensive risk layer.
+Build a professional-grade proprietary stablecoin trading bot for the owner's own capital. The objective is to find, validate, and operate repeatable trading edges that can produce consistent risk-adjusted profits after fees, slippage, stale-data controls, and operational constraints.
 
-The bot should make money from execution-driven opportunities such as stablecoin spreads, venue fee differences, liquidity differences, and inventory placement. The research engine should help avoid bad trades during issuer, venue, regulatory, macro, or depeg stress.
+The bot should make money from execution-driven opportunities such as stablecoin spreads, venue fee differences, liquidity differences, and inventory placement. The research engine should help avoid bad trades during issuer, venue, regulatory, macro, or depeg stress. Profitability must be demonstrated through paper trading, audit logs, and small controlled live experiments before any meaningful capital is deployed.
 
 ## Current Status
 
-Current phase: first public exchange market-data adapter on branch
+Current phase: second public exchange market-data adapter completed on branch
+`feature/coinbase-public-market-data`; draft PR #3 is open against
 `feature/kraken-public-market-data`.
 
 The near-term architecture remains phase 2 first: deterministic stablecoin
@@ -27,6 +28,8 @@ Completed:
 - Implemented the Python package, safe config loader, domain models, SQLite ledger, fixture loaders, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
 - Added deterministic fixture data and integration tests for the paper loop.
 - Opened draft PR #1 for the core skeleton paper loop.
+- Opened draft PR #2 for the Kraken public market-data adapter.
+- Opened draft PR #3 for the Coinbase public market-data adapter.
 
 Task 10 hardening completed:
 
@@ -42,12 +45,19 @@ Task 10 hardening completed:
 - Guard duplicate opportunity fills inside the ledger write transaction for overlapping runs.
 - Verified with the full automated test suite.
 
-Kraken public market-data adapter in progress:
+Kraken public market-data adapter completed:
 
 - Fetches public Kraken order-book snapshots from `/0/public/Depth`.
 - Converts top-of-book data into the existing `MarketSnapshot` JSON format.
 - Adds a CLI command to write snapshots to `runtime/kraken_snapshots.json` or another selected path.
 - Does not use Kraken private API keys, balances, orders, or account endpoints.
+
+Coinbase public market-data adapter completed:
+
+- Fetches public Coinbase Exchange level-1 product book snapshots from `/products/{product_id}/book`.
+- Converts top-of-book data into the existing `MarketSnapshot` JSON format.
+- Adds a combined CLI command that writes Kraken and Coinbase snapshots into one JSON file.
+- Does not use Coinbase private API keys, balances, orders, or account endpoints.
 
 Still not started:
 
@@ -93,11 +103,16 @@ Approach 3 comes later:
 |   +-- superpowers/
 |       +-- plans/
 |       |   +-- 2026-05-13-core-skeleton-paper-loop.md
+|       |   +-- 2026-05-13-kraken-public-market-data.md
+|       |   +-- 2026-05-13-coinbase-public-market-data.md
 |       +-- specs/
 |           +-- 2026-05-13-risk-aware-stablecoin-trader-design.md
+|           +-- 2026-05-13-kraken-public-market-data-design.md
+|           +-- 2026-05-13-coinbase-public-market-data-design.md
 +-- src/
 |   +-- stable_coin_trader/
 |       +-- cli.py
+|       +-- coinbase.py
 |       +-- config.py
 |       +-- engine.py
 |       +-- kraken.py
@@ -118,6 +133,7 @@ Approach 3 comes later:
 - Touch only files inside this project folder.
 - Never put secrets in git.
 - Start with paper trading.
+- Treat consistent profit as the goal, not an assumption; every edge must be measured and proven after costs.
 - Live trading must begin with tiny order sizes.
 - The research engine cannot originate trades.
 - Positive news cannot increase risk beyond the configured baseline.
@@ -127,8 +143,8 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Verify and publish the Kraken public market-data adapter.
-2. Keep execution in paper mode while validating real Kraken spreads, stale-data handling, fees, and ledger behavior.
-3. Add a second venue adapter for cross-venue live spread comparison.
+1. Merge the stacked PRs in order: core skeleton, Kraken public market data, then Coinbase public market data.
+2. Keep execution in paper mode while validating real Kraken/Coinbase spreads, stale-data handling, fees, and ledger behavior.
+3. Add spread observation reporting before any live trading.
 4. Add exchange status and research-source ingestion.
 5. Run paper trading before any live trading.

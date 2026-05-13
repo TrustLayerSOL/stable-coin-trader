@@ -1,13 +1,16 @@
 # Stable Coin Trader
 
-Risk-aware stablecoin paper trading bot for proprietary capital.
+Professional-grade, risk-aware stablecoin trading bot for proprietary capital.
 
 Current phase: core skeleton, deterministic paper loop, and first public exchange market-data adapter. The project does not contain live trading code yet.
+
+The project goal is to find and validate repeatable stablecoin trading edges that can generate consistent risk-adjusted profits after fees, slippage, stale-data controls, and operational constraints. Profitability is not assumed; it must be proven through paper trading, logs, and small controlled live experiments before capital is scaled.
 
 Safety rules:
 
 - No secrets in git.
 - Paper mode first.
+- Consistent profit is the goal, not an assumption.
 - Risk engine approves every proposed trade.
 - Research signals can reduce risk, pause trading, or require review, but cannot originate trades.
 
@@ -37,9 +40,20 @@ It uses a fixed `run_as_of` timestamp so the fixture replay and audit timestamps
 If you run it again against the same local ledger, already-filled opportunities
 are skipped and the output will show zero new fills.
 
-## Fetch Kraken Public Market Data
+## Fetch Public Market Data
 
-Kraken public order-book data does not require API credentials.
+Kraken and Coinbase public order-book data do not require API credentials.
+
+Fetch a two-venue snapshot file:
+
+```bash
+stable-coin-trader fetch-public-snapshots \
+  --kraken-pair USDCEUR:USDC/EUR \
+  --coinbase-product USDC-EUR:USDC/EUR \
+  --output runtime/public_snapshots.json
+```
+
+Fetch Kraken only:
 
 ```bash
 stable-coin-trader fetch-kraken-snapshots \
@@ -50,7 +64,7 @@ stable-coin-trader fetch-kraken-snapshots \
 Then point a paper config's `market_data_path` at the generated JSON file.
 For real fetched data, remove the fixed fixture `run_as_of` value or set it to
 the fetch time so the engine's stale-data checks use the right clock.
-This fetch command never places orders and does not read private Kraken keys.
+These fetch commands never place orders and do not read private exchange keys.
 
 ## Current Layout
 
@@ -60,6 +74,7 @@ data/fixtures/market_snapshots.json       Deterministic market snapshot fixture
 data/fixtures/research_signals.json       Defensive research-signal fixture
 data/fixtures/research_signals_empty.json Demo fixture with no active research signals
 src/stable_coin_trader/config.py          Safe paper config loader
+src/stable_coin_trader/coinbase.py        Coinbase public market-data adapter
 src/stable_coin_trader/ledger.py          SQLite risk-decision and paper-fill ledger
 src/stable_coin_trader/kraken.py          Kraken public market-data adapter
 src/stable_coin_trader/market_data.py     Fixture market-data loader
