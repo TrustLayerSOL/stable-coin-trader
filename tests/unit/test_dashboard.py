@@ -87,3 +87,27 @@ def test_build_dashboard_snapshot_handles_missing_files(tmp_path):
     assert snapshot["route_stats"] == []
     assert snapshot["recent_observations"] == []
     assert snapshot["log_tail"] == []
+
+
+def test_build_dashboard_snapshot_counts_all_samples_not_only_log_tail(tmp_path):
+    observations_path = tmp_path / "observations.jsonl"
+    log_path = tmp_path / "sampler.log"
+    log_path.write_text(
+        "\n".join(
+            f"sample={sample_number} status=successful observations=2"
+            for sample_number in range(1, 101)
+        ),
+        encoding="utf-8",
+    )
+
+    snapshot = build_dashboard_snapshot(
+        observations_path=observations_path,
+        log_path=log_path,
+        expected_samples=100,
+    )
+
+    assert snapshot["sample_success_count"] == 100
+    assert snapshot["sample_failure_count"] == 0
+    assert snapshot["completed_samples"] == 100
+    assert snapshot["completion_pct"] == "100"
+    assert len(snapshot["log_tail"]) == 30

@@ -30,7 +30,7 @@ def build_dashboard_snapshot(
 ) -> dict[str, Any]:
     observations = _load_observations_if_present(observations_path)
     summary = summarize_spread_observations(observations)
-    log_lines = _read_log_tail(log_path, line_count=80)
+    log_lines = _read_log_lines(log_path)
     successful_samples, failed_samples = _sample_counts(log_lines)
     completed_samples = successful_samples + failed_samples
 
@@ -87,11 +87,10 @@ def _load_observations_if_present(path: Path) -> list[SpreadObservation]:
     return load_spread_observations(path)
 
 
-def _read_log_tail(path: Path, line_count: int) -> list[str]:
+def _read_log_lines(path: Path) -> list[str]:
     if not path.exists():
         return []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return lines[-line_count:]
+    return path.read_text(encoding="utf-8").splitlines()
 
 
 def _sample_counts(log_lines: list[str]) -> tuple[int, int]:
