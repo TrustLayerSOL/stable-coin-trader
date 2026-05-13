@@ -106,3 +106,16 @@
 - Added `stable-coin-trader fetch-public-snapshots` to write Kraken and Coinbase snapshots into one JSON file for two-venue paper spread checks.
 - Verified the branch with 304 passing tests, a clean whitespace check, a committed-file secret scan, and a live public Kraken/Coinbase snapshot smoke test.
 - Opened draft PR #3: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/3`.
+
+### Spread Observation Reporting
+
+- Started branch `feature/spread-observation-reporting` from the Coinbase public market-data branch.
+- Added a design spec at `docs/superpowers/specs/2026-05-13-spread-observation-reporting-design.md`.
+- Added an implementation plan at `docs/superpowers/plans/2026-05-13-spread-observation-reporting.md`.
+- Scope is paper-only measurement: no credentials, private endpoints, orders, balances, fills, or live execution.
+- Added spread observations that record profitable and unprofitable directional routes after estimated fees, slippage, top-of-book depth, and snapshot lag checks.
+- Added append-only JSON Lines observation history and summary reporting.
+- Added `stable-coin-trader observe-spreads` and `stable-coin-trader report-spreads`.
+- Verification completed: full automated test suite passed with 324 tests, whitespace check passed, committed-file secret scan passed, and a live public Kraken/Coinbase snapshot -> observe -> report smoke test completed.
+- The live smoke report recorded 2 observations and 0 profitable routes after configured slippage, demonstrating that the measurement layer can produce a no-trade signal.
+- Opened draft PR #4: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/4`.
