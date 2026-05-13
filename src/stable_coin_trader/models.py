@@ -82,9 +82,9 @@ class Opportunity(BaseModel):
 
     @property
     def net_edge_bps(self) -> Decimal:
-        if self.size <= 0:
+        if self.notional <= 0:
             return Decimal("0")
-        return (self.net_profit / self.size) * Decimal("10000")
+        return (self.net_profit / self.notional) * Decimal("10000")
 
 
 class ProposedTrade(BaseModel):

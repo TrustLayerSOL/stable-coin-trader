@@ -54,7 +54,28 @@ def test_opportunity_net_edge_bps() -> None:
 
     assert opportunity.gross_profit == Decimal("0.5000")
     assert opportunity.net_profit == Decimal("0.0500")
-    assert opportunity.net_edge_bps == Decimal("0.5000")
+    assert opportunity.notional == Decimal("999.5000")
+    expected_edge = (opportunity.net_profit / opportunity.notional) * Decimal("10000")
+    assert opportunity.net_edge_bps.quantize(Decimal("0.0001")) == expected_edge.quantize(
+        Decimal("0.0001")
+    )
+
+
+def test_opportunity_net_edge_bps_returns_zero_for_non_positive_notional() -> None:
+    opportunity = Opportunity(
+        buy_venue="kraken",
+        sell_venue="coinbase",
+        symbol="USDC/USD",
+        size=Decimal("1000"),
+        buy_price=Decimal("0"),
+        sell_price=Decimal("1.0000"),
+        estimated_fees=Decimal("0.40"),
+        estimated_slippage=Decimal("0.05"),
+        observed_at="2026-05-13T12:00:00Z",
+    )
+
+    assert opportunity.notional == Decimal("0")
+    assert opportunity.net_edge_bps == Decimal("0")
 
 
 def test_research_signal_requires_valid_direction() -> None:
