@@ -8,9 +8,9 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: spread sampling runner on branch
-`feature/spread-sampling-runner`, stacked on the spread observation reporting
-branch.
+Current phase: spread sampling runner completed on branch
+`feature/spread-sampling-runner`; draft PR #5 is open against
+`feature/spread-observation-reporting`.
 
 The near-term architecture remains phase 2 first: deterministic stablecoin
 spread paper trading, followed later by the phase 3 research/news layer after
@@ -33,6 +33,7 @@ Completed:
 - Started the spread observation reporting layer.
 - Opened draft PR #4 for spread observation reporting.
 - Started the spread sampling runner.
+- Opened draft PR #5 for the spread sampling runner.
 
 Task 10 hardening completed:
 
@@ -169,10 +170,9 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Publish the spread sampling runner branch as the next stacked draft PR.
-2. Merge the stacked PRs in order: core skeleton, Kraken public market data, Coinbase public market data, spread observation reporting, then spread sampling.
-3. Run repeated public Kraken/Coinbase spread observations before any live trading.
-4. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
-5. Add exchange status and research-source ingestion after measurement is running.
-6. Add storage rotation or a database-backed observation store if JSON Lines history grows beyond practical file size.
-7. Only consider tiny live execution after observations and paper trading show a repeatable net edge after costs.
+1. Merge the stacked PRs in order: core skeleton, Kraken public market data, Coinbase public market data, spread observation reporting, then spread sampling.
+2. Run repeated public Kraken/Coinbase spread observations before any live trading.
+3. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
+4. Add exchange status and research-source ingestion after measurement is running.
+5. Add storage rotation or a database-backed observation store if JSON Lines history grows beyond practical file size.
+6. Only consider tiny live execution after observations and paper trading show a repeatable net edge after costs.

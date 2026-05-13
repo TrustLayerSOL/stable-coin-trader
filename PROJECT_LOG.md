@@ -132,3 +132,4 @@
 - Added per-sample CLI progress output and graceful command failure reporting for output write failures.
 - Verification completed: full automated test suite passed with 347 tests, whitespace check passed, and a live one-sample public Kraken/Coinbase smoke run completed.
 - The live smoke sample recorded 2 observations and 0 profitable routes after configured slippage.
+- Opened draft PR #5: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/5`.

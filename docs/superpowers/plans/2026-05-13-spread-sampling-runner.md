@@ -103,4 +103,4 @@ Expected result: all focused tests pass.
 - [x] Run `git diff --check`.
 - [x] Run a real public smoke sample with `--samples 1 --interval-seconds 0`.
 - [x] Run a committed-file secret scan.
-- [ ] Commit, push, and open a draft PR stacked on `feature/spread-observation-reporting`.
+- [x] Commit, push, and open a draft PR stacked on `feature/spread-observation-reporting`.
