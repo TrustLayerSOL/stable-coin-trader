@@ -104,3 +104,5 @@
 - Scope is public Coinbase Exchange market data only: no private keys, balances, orders, or live execution.
 - Added a Coinbase public REST client for level-1 product book snapshots.
 - Added `stable-coin-trader fetch-public-snapshots` to write Kraken and Coinbase snapshots into one JSON file for two-venue paper spread checks.
+- Verified the branch with 304 passing tests, a clean whitespace check, a committed-file secret scan, and a live public Kraken/Coinbase snapshot smoke test.
+- Opened draft PR #3: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/3`.

@@ -8,8 +8,9 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: second public exchange market-data adapter on branch
-`feature/coinbase-public-market-data`.
+Current phase: second public exchange market-data adapter completed on branch
+`feature/coinbase-public-market-data`; draft PR #3 is open against
+`feature/kraken-public-market-data`.
 
 The near-term architecture remains phase 2 first: deterministic stablecoin
 spread paper trading, followed later by the phase 3 research/news layer after
@@ -27,6 +28,8 @@ Completed:
 - Implemented the Python package, safe config loader, domain models, SQLite ledger, fixture loaders, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
 - Added deterministic fixture data and integration tests for the paper loop.
 - Opened draft PR #1 for the core skeleton paper loop.
+- Opened draft PR #2 for the Kraken public market-data adapter.
+- Opened draft PR #3 for the Coinbase public market-data adapter.
 
 Task 10 hardening completed:
 
@@ -49,7 +52,7 @@ Kraken public market-data adapter completed:
 - Adds a CLI command to write snapshots to `runtime/kraken_snapshots.json` or another selected path.
 - Does not use Kraken private API keys, balances, orders, or account endpoints.
 
-Coinbase public market-data adapter in progress:
+Coinbase public market-data adapter completed:
 
 - Fetches public Coinbase Exchange level-1 product book snapshots from `/products/{product_id}/book`.
 - Converts top-of-book data into the existing `MarketSnapshot` JSON format.
@@ -100,8 +103,12 @@ Approach 3 comes later:
 |   +-- superpowers/
 |       +-- plans/
 |       |   +-- 2026-05-13-core-skeleton-paper-loop.md
+|       |   +-- 2026-05-13-kraken-public-market-data.md
+|       |   +-- 2026-05-13-coinbase-public-market-data.md
 |       +-- specs/
 |           +-- 2026-05-13-risk-aware-stablecoin-trader-design.md
+|           +-- 2026-05-13-kraken-public-market-data-design.md
+|           +-- 2026-05-13-coinbase-public-market-data-design.md
 +-- src/
 |   +-- stable_coin_trader/
 |       +-- cli.py
@@ -136,8 +143,8 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Verify and publish the Coinbase public market-data adapter.
+1. Merge the stacked PRs in order: core skeleton, Kraken public market data, then Coinbase public market data.
 2. Keep execution in paper mode while validating real Kraken/Coinbase spreads, stale-data handling, fees, and ledger behavior.
-3. Add exchange status and research-source ingestion.
-4. Add spread observation reporting before any live trading.
+3. Add spread observation reporting before any live trading.
+4. Add exchange status and research-source ingestion.
 5. Run paper trading before any live trading.
