@@ -1,5 +1,6 @@
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -14,8 +15,8 @@ def valid_config_data(tmp_path) -> dict[str, object]:
         "market_data_path": "data/fixtures/market_snapshots.json",
         "research_signals_path": "data/fixtures/research_signals.json",
         "base_currency": "USD",
-        "symbols": ["USDC/USD"],
-        "venues": ["coinbase", "kraken"],
+        "symbols": [" USDC/USD "],
+        "venues": [" coinbase ", "\tkraken\n"],
         "max_order_usd": "1000",
         "max_position_usd": "5000",
         "min_edge_bps": "2.5",
@@ -32,6 +33,14 @@ def test_load_config_from_json(tmp_path) -> None:
     config = load_config(path)
 
     assert config.mode == "paper"
+    assert config.ledger_path == tmp_path / "paper.sqlite3"
+    assert isinstance(config.ledger_path, Path)
+    assert config.market_data_path == Path("data/fixtures/market_snapshots.json")
+    assert isinstance(config.market_data_path, Path)
+    assert config.research_signals_path == Path("data/fixtures/research_signals.json")
+    assert isinstance(config.research_signals_path, Path)
+    assert config.symbols == ["USDC/USD"]
+    assert config.venues == ["coinbase", "kraken"]
     assert config.max_order_usd == Decimal("1000")
     assert config.min_edge_bps == Decimal("2.5")
 
@@ -67,6 +76,36 @@ def test_config_rejects_empty_symbols(tmp_path) -> None:
     ],
 )
 def test_config_rejects_blank_symbols_and_venues(tmp_path, field, value) -> None:
+    data = valid_config_data(tmp_path) | {field: value}
+
+    with pytest.raises(ValidationError):
+        BotConfig.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("ledger_path", ""),
+        ("ledger_path", " "),
+        ("ledger_path", "\t\n"),
+        ("ledger_path", "."),
+        ("ledger_path", "./"),
+        ("ledger_path", Path(".")),
+        ("market_data_path", ""),
+        ("market_data_path", " "),
+        ("market_data_path", "\t\n"),
+        ("market_data_path", "."),
+        ("market_data_path", "./"),
+        ("market_data_path", Path(".")),
+        ("research_signals_path", ""),
+        ("research_signals_path", " "),
+        ("research_signals_path", "\t\n"),
+        ("research_signals_path", "."),
+        ("research_signals_path", "./"),
+        ("research_signals_path", Path(".")),
+    ],
+)
+def test_config_rejects_blank_paths(tmp_path, field, value) -> None:
     data = valid_config_data(tmp_path) | {field: value}
 
     with pytest.raises(ValidationError):

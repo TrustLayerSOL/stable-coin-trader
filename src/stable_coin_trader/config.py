@@ -6,7 +6,14 @@ from os import PathLike
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 NonEmptyString = Annotated[
     str,
@@ -30,6 +37,27 @@ class BotConfig(BaseModel):
     stale_after_seconds: int = Field(gt=0, strict=True)
     depeg_threshold_bps: Decimal = Field(gt=0)
     daily_loss_limit_usd: Decimal = Field(gt=0)
+
+    @field_validator(
+        "ledger_path",
+        "market_data_path",
+        "research_signals_path",
+        mode="before",
+    )
+    @classmethod
+    def validate_non_blank_path(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                raise ValueError("path cannot be blank")
+            if Path(stripped) == Path("."):
+                raise ValueError("path cannot be the current directory")
+            value = stripped
+
+        if isinstance(value, PathLike) and Path(value) == Path("."):
+            raise ValueError("path cannot be the current directory")
+
+        return value
 
     @model_validator(mode="after")
     def validate_order_limit(self) -> "BotConfig":
