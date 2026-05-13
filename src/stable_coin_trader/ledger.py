@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from decimal import Decimal
 from pathlib import Path
@@ -40,6 +41,7 @@ class Ledger:
                 create table if not exists paper_fills (
                     id integer primary key autoincrement,
                     created_at text not null,
+                    risk_decision_id integer not null,
                     opportunity_id text not null,
                     venue text not null,
                     symbol text not null,
@@ -83,13 +85,14 @@ class Ledger:
                     decision.reason,
                     str(decision.min_edge_bps),
                     1 if decision.requires_human_approval else 0,
-                    ",".join(decision.active_signal_ids),
+                    json.dumps(decision.active_signal_ids),
                 ),
             )
             return int(cursor.lastrowid)
 
     def record_paper_fill(
         self,
+        risk_decision_id: int,
         opportunity_id: str,
         venue: str,
         symbol: str,
@@ -103,6 +106,7 @@ class Ledger:
                 """
                 insert into paper_fills (
                     created_at,
+                    risk_decision_id,
                     opportunity_id,
                     venue,
                     symbol,
@@ -111,10 +115,11 @@ class Ledger:
                     price,
                     fee
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     utc_now().isoformat(),
+                    risk_decision_id,
                     opportunity_id,
                     venue,
                     symbol,
