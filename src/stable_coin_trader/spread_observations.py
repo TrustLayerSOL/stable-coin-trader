@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 from collections import defaultdict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -174,13 +178,15 @@ def append_spread_observations(
 ) -> None:
     output_path = _observation_path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    if not observations:
-        output_path.touch(exist_ok=True)
-        return
-
-    with output_path.open("a", encoding="utf-8") as output_file:
-        for observation in observations:
-            output_file.write(json.dumps(_observation_json(observation)) + "\n")
+    with _exclusive_observation_lock(output_path):
+        existing_content = (
+            output_path.read_text(encoding="utf-8") if output_path.exists() else ""
+        )
+        new_content = "".join(
+            json.dumps(_observation_json(observation)) + "\n"
+            for observation in observations
+        )
+        _write_text_atomic(output_path, existing_content + new_content)
 
 
 def load_spread_observations(
@@ -357,3 +363,26 @@ def _observation_json(observation: SpreadObservation) -> dict[str, Any]:
 
 def _format_datetime(value: datetime) -> str:
     return parse_dt(value).isoformat().replace("+00:00", "Z")
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
+    try:
+        temp_path.write_text(content, encoding="utf-8")
+        os.replace(temp_path, path)
+    finally:
+        try:
+            temp_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+@contextmanager
+def _exclusive_observation_lock(path: Path) -> Iterator[None]:
+    lock_path = path.with_name(f".{path.name}.lock")
+    with lock_path.open("a", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)

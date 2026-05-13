@@ -119,3 +119,17 @@
 - Verification completed: full automated test suite passed with 324 tests, whitespace check passed, committed-file secret scan passed, and a live public Kraken/Coinbase snapshot -> observe -> report smoke test completed.
 - The live smoke report recorded 2 observations and 0 profitable routes after configured slippage, demonstrating that the measurement layer can produce a no-trade signal.
 - Opened draft PR #4: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/4`.
+
+### Spread Sampling Runner
+
+- Started branch `feature/spread-sampling-runner` from the spread observation reporting branch.
+- Added a design spec at `docs/superpowers/specs/2026-05-13-spread-sampling-runner-design.md`.
+- Added an implementation plan at `docs/superpowers/plans/2026-05-13-spread-sampling-runner.md`.
+- Scope is finite paper-only measurement: no credentials, private endpoints, orders, balances, fills, live execution, or background daemon.
+- Added a sampling runner that repeatedly fetches public Kraken/Coinbase snapshots, appends spread observations, counts per-sample failures, and keeps going until the requested sample count is reached.
+- Added `stable-coin-trader sample-spreads` for bounded time-series collection.
+- Hardened spread observation appends with a local file lock and atomic replace so sampler writes do not leave partial records or lose local concurrent writes.
+- Added per-sample CLI progress output and graceful command failure reporting for output write failures.
+- Verification completed: full automated test suite passed with 347 tests, whitespace check passed, and a live one-sample public Kraken/Coinbase smoke run completed.
+- The live smoke sample recorded 2 observations and 0 profitable routes after configured slippage.
+- Opened draft PR #5: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/5`.
