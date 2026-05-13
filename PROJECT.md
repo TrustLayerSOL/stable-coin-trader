@@ -8,7 +8,7 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: design and planning.
+Current phase: implementation plan written and pending execution choice.
 
 Completed:
 
@@ -18,6 +18,7 @@ Completed:
 - Selected Approach 2: Risk-Aware Stablecoin Trader.
 - Connected this local folder to `trustlayersol/stable-coin-trader`.
 - Created the initial design spec.
+- Created the first implementation plan: `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
 
 Not started:
 
@@ -90,11 +91,10 @@ The implementation plan may refine this, but the expected layout is:
 
 ## Next Steps
 
-1. Review the design spec in `docs/superpowers/specs/2026-05-13-risk-aware-stablecoin-trader-design.md`.
-2. Confirm or adjust the first implementation scope.
-3. Write the implementation plan.
-4. Build the project skeleton, config system, ledger schema, and paper-trading loop.
-5. Add exchange market-data adapters.
-6. Add the opportunity engine and risk engine.
-7. Add research signal ingestion.
-8. Run paper trading before any live trading.
+1. Review the first implementation plan in `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
+2. Choose Subagent-Driven or Inline Execution for that plan.
+3. Build the project skeleton, config system, ledger schema, and paper-trading loop.
+4. Add exchange market-data adapters.
+5. Add the opportunity engine and risk engine.
+6. Add research signal ingestion.
+7. Run paper trading before any live trading.

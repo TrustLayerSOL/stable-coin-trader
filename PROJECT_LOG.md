@@ -44,6 +44,13 @@
 
 ### Current State
 
-- Design documentation has been written and is pending review.
+- Design documentation has been approved.
+- The first implementation plan has been written and is pending execution choice.
 - No implementation code exists yet.
 - No live trading is enabled.
+
+### Implementation Planning
+
+- Created the first implementation plan at `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
+- Plan scope: Python bootstrap, config, models, SQLite ledger, fixture market data, fixture research signals, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
+- Deferred live trading, exchange API adapters, DEX execution, dashboard, and paid research sources to later plans.
