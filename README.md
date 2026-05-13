@@ -1,10 +1,19 @@
 # Stable Coin Trader
 
-Professional-grade, risk-aware stablecoin trading bot for proprietary capital.
+Professional-grade Adaptive Liquidity Intelligence Engine for proprietary capital.
 
 Current phase: public Kraken/Coinbase market data plus paper-only spread sampling and observation reporting. The project does not contain live trading code yet.
 
-The project goal is to find and validate repeatable stablecoin trading edges that can generate consistent risk-adjusted profits after fees, slippage, stale-data controls, and operational constraints. Profitability is not assumed; it must be proven through paper trading, logs, and small controlled live experiments before capital is scaled.
+The project goal is to find and validate repeatable liquidity edges that can generate consistent risk-adjusted profits after fees, slippage, stale-data controls, inventory constraints, funding costs, venue risk, and operational constraints. Profitability is not assumed; it must be proven through paper trading, logs, and small controlled live experiments before capital is scaled.
+
+The long-term architecture is one unified system, not separate bots:
+
+- Market data and normalization.
+- Pricing engine.
+- Strategy modules for arbitrage, funding-rate/basis, DEX/CEX, market making, momentum, and inventory hedging.
+- Unified inventory and risk engine.
+- Paper/live execution routing.
+- Ledger, analytics, and GUI operations tooling.
 
 Safety rules:
 
@@ -12,6 +21,7 @@ Safety rules:
 - Paper mode first.
 - Consistent profit is the goal, not an assumption.
 - Risk engine approves every proposed trade.
+- Strategy modules cannot bypass inventory, risk, execution controls, or the ledger.
 - Research signals can reduce risk, pause trading, or require review, but cannot originate trades.
 
 ## Local Setup

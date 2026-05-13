@@ -31,6 +31,10 @@
 - Decided the research engine should make the bot more cautious, not more aggressive.
 - Clarified the project north star: build a professional-grade bot that can find and validate repeatable stablecoin trading edges capable of consistent risk-adjusted profits after all costs and controls.
 - Consistent profit is treated as a target to prove with data, not an assumption.
+- Reframed the long-term product as an Adaptive Liquidity Intelligence Engine instead of a single-purpose trading bot.
+- Defined the target layers as market data, normalization, pricing engine, strategy modules, inventory and hedging, risk engine, execution and routing, ledger and analytics, and GUI/operations.
+- Added strategy tracks for cross-exchange arbitrage, triangular arbitrage, DEX/CEX arbitrage, funding-rate and basis arbitrage, market making, momentum, and inventory hedging.
+- Kept the rule that strategy modules can propose actions, but inventory, risk, execution controls, and the ledger must govern all actions.
 
 ### Repository Setup
 
@@ -149,3 +153,7 @@
 - Added a temporary read-only local dashboard served on `http://127.0.0.1:8777/`.
 - The dashboard reads the active JSON Lines observation file and sampler log, refreshes every 5 seconds, and shows sample progress, observation count, route statistics, latest observations, and log tail.
 - It has no trading controls, no private API access, and no credential reads.
+- Completed the 2-hour public USDC/EUR canary with 240 samples, 480 directional observations, 0 sampler failures, and 0 profitable observations after configured cost assumptions.
+- Best observed route was `kraken->coinbase USDC/EUR` at `-1` bps; average observed edge was `-2.17068085` bps.
+- Current conclusion: the tested USDC/EUR Kraken/Coinbase route does not show a tradable edge under the tested assumptions.
+- Fixed the dashboard progress calculation so it counts all sampler log lines instead of only the visible log tail.
