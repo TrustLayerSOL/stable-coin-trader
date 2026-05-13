@@ -8,7 +8,7 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: implementation plan written and pending execution choice.
+Current phase: core skeleton implemented and deterministic paper loop runnable.
 
 Completed:
 
@@ -19,13 +19,15 @@ Completed:
 - Connected this local folder to `trustlayersol/stable-coin-trader`.
 - Created the initial design spec.
 - Created the first implementation plan: `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
+- Implemented the Python package, safe config loader, domain models, SQLite ledger, fixture loaders, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
+- Added deterministic fixture data and integration tests for the paper loop.
 
-Not started:
+Still not started:
 
-- No trading code has been implemented.
 - No API keys or secrets have been added.
 - No live trading has been enabled.
 - No exchange accounts have been connected.
+- No real exchange market-data adapters have been added.
 
 ## Selected Approach
 
@@ -47,34 +49,41 @@ Approach 3 comes later:
 - Social trend intelligence.
 - Broader dashboard and operations tooling.
 
-## Proposed Project Layout
-
-The implementation plan may refine this, but the expected layout is:
+## Project Layout
 
 ```text
 .
 +-- PROJECT.md
 +-- PROJECT_LOG.md
++-- README.md
++-- config/
+|   +-- paper.example.json
++-- data/
+|   +-- fixtures/
+|       +-- market_snapshots.json
+|       +-- research_signals.json
+|       +-- research_signals_empty.json
 +-- docs/
 |   +-- superpowers/
+|       +-- plans/
+|       |   +-- 2026-05-13-core-skeleton-paper-loop.md
 |       +-- specs/
 |           +-- 2026-05-13-risk-aware-stablecoin-trader-design.md
 +-- src/
 |   +-- stable_coin_trader/
-|       +-- config/
-|       +-- exchanges/
-|       +-- market_data/
-|       +-- research/
-|       +-- opportunities/
-|       +-- risk/
-|       +-- execution/
-|       +-- ledger/
-|       +-- monitoring/
+|       +-- cli.py
+|       +-- config.py
+|       +-- engine.py
+|       +-- ledger.py
+|       +-- market_data.py
+|       +-- models.py
+|       +-- opportunities.py
+|       +-- paper.py
+|       +-- research.py
+|       +-- risk.py
 +-- tests/
 |   +-- unit/
 |   +-- integration/
-|   +-- fixtures/
-+-- scripts/
 ```
 
 ## Design Rules
@@ -91,10 +100,9 @@ The implementation plan may refine this, but the expected layout is:
 
 ## Next Steps
 
-1. Review the first implementation plan in `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
-2. Choose Subagent-Driven or Inline Execution for that plan.
-3. Build the project skeleton, config system, ledger schema, and paper-trading loop.
-4. Add exchange market-data adapters.
-5. Add the opportunity engine and risk engine.
-6. Add research signal ingestion.
-7. Run paper trading before any live trading.
+1. Complete final verification of the deterministic paper loop.
+2. Push the implementation branch to GitHub.
+3. Add the first real exchange market-data adapter, likely Kraken or Coinbase.
+4. Keep execution in paper mode while validating spreads, stale-data handling, fees, and ledger behavior.
+5. Add exchange status and research-source ingestion.
+6. Run paper trading before any live trading.
