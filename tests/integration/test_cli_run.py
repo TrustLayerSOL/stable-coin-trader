@@ -48,7 +48,10 @@ def test_cli_run_once(tmp_path) -> None:
                 "max_order_usd": "1000",
                 "max_position_usd": "5000",
                 "min_edge_bps": "1",
-                "stale_after_seconds": 315360000,
+                "fee_bps": "1",
+                "slippage_bps": "0.5",
+                "run_as_of": "2026-05-13T12:00:10Z",
+                "stale_after_seconds": 20,
                 "depeg_threshold_bps": "30",
                 "daily_loss_limit_usd": "25",
             }

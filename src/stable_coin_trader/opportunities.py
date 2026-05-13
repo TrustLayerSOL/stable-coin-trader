@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from decimal import Decimal
+from hashlib import sha256
 
-from stable_coin_trader.models import MarketSnapshot, Opportunity
+from stable_coin_trader.models import MarketSnapshot, Opportunity, decimal_key
 
 
 def bps_cost(notional: Decimal, bps: Decimal) -> Decimal:
@@ -52,6 +53,12 @@ def find_spread_opportunities(
                 buy_notional = buy.ask * executable_size
                 sell_notional = sell.bid * executable_size
                 opportunity = Opportunity(
+                    id=_stable_opportunity_id(
+                        symbol=symbol,
+                        buy=buy,
+                        sell=sell,
+                        size=executable_size,
+                    ),
                     buy_venue=buy.venue,
                     sell_venue=sell.venue,
                     symbol=symbol,
@@ -81,3 +88,25 @@ def find_spread_opportunities(
             item.observed_at,
         ),
     )
+
+
+def _stable_opportunity_id(
+    symbol: str,
+    buy: MarketSnapshot,
+    sell: MarketSnapshot,
+    size: Decimal,
+) -> str:
+    raw = "|".join(
+        (
+            "spread",
+            symbol,
+            buy.venue,
+            sell.venue,
+            decimal_key(size),
+            decimal_key(buy.ask),
+            decimal_key(sell.bid),
+            buy.observed_at.isoformat(),
+            sell.observed_at.isoformat(),
+        )
+    )
+    return f"spread-{sha256(raw.encode('utf-8')).hexdigest()[:24]}"

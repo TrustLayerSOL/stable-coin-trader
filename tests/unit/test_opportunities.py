@@ -52,6 +52,60 @@ def test_find_spread_opportunities_returns_profitable_cross_venue_trade() -> Non
     assert opportunity.net_profit > 0
 
 
+def test_find_spread_opportunities_uses_stable_observation_scoped_ids() -> None:
+    snapshots = [
+        make_snapshot(venue="coinbase", bid="1.0000", ask="1.0002"),
+        make_snapshot(venue="kraken", bid="0.9994", ask="0.9996"),
+    ]
+    later_snapshots = [
+        make_snapshot(
+            venue="coinbase",
+            bid="1.0000",
+            ask="1.0002",
+            observed_at="2026-05-13T12:00:01Z",
+        ),
+        make_snapshot(
+            venue="kraken",
+            bid="0.9994",
+            ask="0.9996",
+            observed_at="2026-05-13T12:00:01Z",
+        ),
+    ]
+    scaled_snapshots = [
+        make_snapshot(venue="coinbase", bid="1.00000", ask="1.00020"),
+        make_snapshot(venue="kraken", bid="0.99940", ask="0.99960"),
+    ]
+
+    first = find_spread_opportunities(
+        snapshots=snapshots,
+        size=Decimal("1000"),
+        fee_bps=Decimal("1"),
+        slippage_bps=Decimal("0.5"),
+    )
+    replay = find_spread_opportunities(
+        snapshots=snapshots,
+        size=Decimal("1000"),
+        fee_bps=Decimal("1"),
+        slippage_bps=Decimal("0.5"),
+    )
+    later = find_spread_opportunities(
+        snapshots=later_snapshots,
+        size=Decimal("1000"),
+        fee_bps=Decimal("1"),
+        slippage_bps=Decimal("0.5"),
+    )
+    scaled = find_spread_opportunities(
+        snapshots=scaled_snapshots,
+        size=Decimal("1000.0"),
+        fee_bps=Decimal("1"),
+        slippage_bps=Decimal("0.5"),
+    )
+
+    assert first[0].id == replay[0].id
+    assert scaled[0].id == first[0].id
+    assert later[0].id != first[0].id
+
+
 def test_find_spread_opportunities_ignores_same_venue() -> None:
     snapshots = [
         make_snapshot(venue="coinbase"),

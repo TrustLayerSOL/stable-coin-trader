@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from decimal import Decimal
 from os import PathLike
 from pathlib import Path
@@ -51,6 +52,7 @@ def test_load_config_from_json(tmp_path) -> None:
     assert config.min_edge_bps == Decimal("2.5")
     assert config.fee_bps == Decimal("1")
     assert config.slippage_bps == Decimal("0.5")
+    assert config.run_as_of is None
 
 
 def test_load_shipped_paper_example_config() -> None:
@@ -59,6 +61,7 @@ def test_load_shipped_paper_example_config() -> None:
     config = load_config(config_path)
 
     assert config.mode == "paper"
+    assert config.run_as_of == datetime(2026, 5, 13, 12, 0, 10, tzinfo=timezone.utc)
 
 
 def test_config_rejects_unknown_keys(tmp_path) -> None:

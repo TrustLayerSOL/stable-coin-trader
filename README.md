@@ -33,6 +33,9 @@ paper run complete opportunities=1 approved=2 rejected=0 fills=2
 ```
 
 The example config writes to `runtime/paper.sqlite3`, which is ignored by git.
+It uses a fixed `run_as_of` timestamp so the fixture replay and audit timestamps are deterministic.
+If you run it again against the same local ledger, already-filled opportunities
+are skipped and the output will show zero new fills.
 
 ## Current Layout
 

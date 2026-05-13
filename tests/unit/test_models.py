@@ -12,6 +12,7 @@ from stable_coin_trader.models import (
     ProposedTrade,
     ResearchSignal,
     RiskDecision,
+    decimal_key,
     parse_dt,
     utc_now,
 )
@@ -71,6 +72,22 @@ def test_parse_dt_handles_trailing_z_and_normalizes_to_utc() -> None:
 def test_parse_dt_only_treats_trailing_z_as_utc() -> None:
     with pytest.raises(ValueError):
         parse_dt("2026-05-13ZT12:00:00Z")
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (Decimal("1000"), "1000"),
+        (Decimal("1000.00"), "1000"),
+        (Decimal("0.99960"), "0.9996"),
+        (Decimal("0.0000"), "0"),
+    ],
+)
+def test_decimal_key_canonicalizes_equivalent_decimal_text(
+    value: Decimal,
+    expected: str,
+) -> None:
+    assert decimal_key(value) == expected
 
 
 def test_market_snapshot_calculates_mid_price() -> None:
@@ -268,6 +285,12 @@ def test_research_signal_is_expired_uses_ttl_boundary() -> None:
     assert signal.is_expired(datetime(2026, 5, 13, 12, 59, 59, tzinfo=timezone.utc)) is False
     assert signal.is_expired(datetime(2026, 5, 13, 13, 0, 0, tzinfo=timezone.utc)) is False
     assert signal.is_expired(datetime(2026, 5, 13, 13, 0, 1, tzinfo=timezone.utc)) is True
+
+
+def test_research_signal_is_expired_before_observation_time() -> None:
+    signal = make_research_signal(ttl_seconds=3600)
+
+    assert signal.is_expired(datetime(2026, 5, 13, 11, 59, 59, tzinfo=timezone.utc)) is True
 
 
 def test_research_signal_risk_score_multiplies_severity_confidence_source_quality() -> None:

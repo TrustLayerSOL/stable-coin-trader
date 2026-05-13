@@ -73,3 +73,14 @@
 - Paper loop works with `config/paper.example.json`.
 - Example CLI output: `paper run complete opportunities=1 approved=2 rejected=0 fills=2`.
 - Live trading, real exchange APIs, DEX execution, dashboarding, and paid research sources remain deferred.
+
+### Task 10 Hardening Pass
+
+- Current branch: `implementation/core-skeleton-paper-loop`.
+- Current task: Task 10 / one-cycle paper engine hardening.
+- Architecture remains phase 2 first: deterministic stablecoin spread paper trading, with phase 3 research/news expansion deferred until the core loop is proven.
+- Hardening completed for fail-closed ledger exposure reads, engine-clock checks for future-dated and stale market data, engine-clock research signal loading, future-dated research signal filtering, configurable fee and slippage basis points, deterministic fixture replay via `run_as_of`, duplicate already-filled opportunity skipping, observation-scoped opportunity IDs, and atomic pair execution.
+- Atomic pair execution records approved paper legs in one ledger transaction so both legs are recorded together or no fills are recorded.
+- Duplicate opportunity fills are guarded inside the ledger write transaction so overlapping runs cannot both fill the same opportunity.
+- Verification completed: full automated test suite passed with 275 tests.
+- The example CLI run against the existing local `runtime/paper.sqlite3` ledger returned zero new fills, confirming duplicate-fill protection on repeated runs.

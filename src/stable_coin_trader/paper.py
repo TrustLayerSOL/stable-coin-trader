@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 
 from stable_coin_trader.ledger import Ledger
@@ -16,21 +17,37 @@ class PaperExecutor:
         self.ledger = ledger
         self.fee_bps = fee_bps
 
-    def execute(self, decision: RiskDecision) -> int | None:
-        risk_decision_id = self.ledger.record_risk_decision(decision)
+    def execute(
+        self,
+        decision: RiskDecision,
+        created_at: datetime | None = None,
+    ) -> int | None:
         if not decision.approved:
+            self.ledger.record_risk_decision(decision, created_at=created_at)
             return None
 
+        fill_ids = self.execute_many([decision], created_at=created_at)
+        return fill_ids[0] if fill_ids else None
+
+    def execute_many(
+        self,
+        decisions: list[RiskDecision],
+        created_at: datetime | None = None,
+    ) -> list[int]:
+        if not decisions:
+            return []
+
+        if any(not decision.approved for decision in decisions):
+            raise ValueError("execute_many requires approved decisions")
+
+        fees = [self._fee_for(decision) for decision in decisions]
+        return self.ledger.record_paper_fills_for_decisions(
+            decisions=decisions,
+            fees=fees,
+            created_at=created_at,
+        )
+
+    def _fee_for(self, decision: RiskDecision) -> Decimal:
         trade = decision.trade
         notional = trade.size * trade.limit_price
-        fee = notional * self.fee_bps / Decimal("10000")
-        return self.ledger.record_paper_fill(
-            risk_decision_id=risk_decision_id,
-            opportunity_id=trade.opportunity_id,
-            venue=trade.venue,
-            symbol=trade.symbol,
-            side=trade.side,
-            size=trade.size,
-            price=trade.limit_price,
-            fee=fee,
-        )
+        return notional * self.fee_bps / Decimal("10000")

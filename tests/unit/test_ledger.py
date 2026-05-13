@@ -12,22 +12,30 @@ from stable_coin_trader.ledger import Ledger
 from stable_coin_trader.models import ProposedTrade, RiskDecision
 
 
-def _record_approved_decision(ledger: Ledger) -> int:
+def _approved_decision(
+    *,
+    opportunity_id: str = "opp-1",
+    side: str = "buy",
+    venue: str = "kraken",
+    price: Decimal = Decimal("0.9995"),
+) -> RiskDecision:
     trade = ProposedTrade(
-        opportunity_id="opp-1",
-        side="buy",
-        venue="kraken",
+        opportunity_id=opportunity_id,
+        side=side,
+        venue=venue,
         symbol="USDC/USD",
         size=Decimal("1000"),
-        limit_price=Decimal("0.9995"),
+        limit_price=price,
     )
-    return ledger.record_risk_decision(
-        RiskDecision.approve(
-            trade=trade,
-            reason="net edge meets threshold",
-            min_edge_bps=Decimal("2.5"),
-        )
+    return RiskDecision.approve(
+        trade=trade,
+        reason="net edge meets threshold",
+        min_edge_bps=Decimal("2.5"),
     )
+
+
+def _record_approved_decision(ledger: Ledger) -> int:
+    return ledger.record_risk_decision(_approved_decision())
 
 
 def _record_rejected_decision(ledger: Ledger) -> int:
@@ -58,6 +66,18 @@ class _SlowValidationLedger(Ledger):
         super()._validate_paper_fill_matches_decision(*args, **kwargs)
         self.validation_started.set()
         sleep(0.1)
+
+
+class _SecondBatchFillFailureLedger(Ledger):
+    def __init__(self, path) -> None:
+        super().__init__(path)
+        self.fill_attempts = 0
+
+    def _insert_paper_fill(self, *args, **kwargs) -> int:
+        self.fill_attempts += 1
+        if self.fill_attempts == 2:
+            raise RuntimeError("simulated fill insert failure")
+        return super()._insert_paper_fill(*args, **kwargs)
 
 
 def test_ledger_records_risk_decision(tmp_path) -> None:
@@ -168,7 +188,37 @@ def test_ledger_records_paper_fill(tmp_path) -> None:
     assert row["side"] == "buy"
     assert row["size"] == "1000"
     assert row["price"] == "0.9995"
-    assert row["fee"] == "0.20"
+    assert row["fee"] == "0.2"
+
+
+def test_ledger_rejects_duplicate_paper_fill_leg(tmp_path) -> None:
+    ledger = Ledger(tmp_path / "ledger.sqlite3")
+    ledger.initialize()
+    decision_id = _record_approved_decision(ledger)
+
+    ledger.record_paper_fill(
+        risk_decision_id=decision_id,
+        opportunity_id="opp-1",
+        venue="kraken",
+        symbol="USDC/USD",
+        side="buy",
+        size=Decimal("1000"),
+        price=Decimal("0.9995"),
+        fee=Decimal("0.20"),
+    )
+    duplicate_decision_id = ledger.record_risk_decision(_approved_decision())
+
+    with pytest.raises(sqlite3.IntegrityError):
+        ledger.record_paper_fill(
+            risk_decision_id=duplicate_decision_id,
+            opportunity_id="opp-1",
+            venue="kraken",
+            symbol="USDC/USD",
+            side="buy",
+            size=Decimal("1000.0"),
+            price=Decimal("0.99950"),
+            fee=Decimal("0.20"),
+        )
 
 
 def test_ledger_rejects_paper_fill_with_unknown_risk_decision_id(tmp_path) -> None:
@@ -297,8 +347,9 @@ def test_ledger_allows_partial_fill_with_numeric_scale_difference(tmp_path) -> N
 
     rows = ledger.fetch_all("select * from paper_fills")
     assert len(rows) == 1
-    assert rows[0]["size"] == "1000.00"
-    assert rows[0]["price"] == "0.99950"
+    assert rows[0]["size"] == "1000"
+    assert rows[0]["price"] == "0.9995"
+    assert rows[0]["fee"] == "0.2"
 
 
 def test_ledger_allows_buy_fill_below_limit_price(tmp_path) -> None:
@@ -397,6 +448,59 @@ def test_ledger_serializes_fill_size_validation(tmp_path) -> None:
         isinstance(error, ValueError) and "size" in str(error)
         for error in outcomes
     )
+
+
+def test_ledger_rolls_back_batched_decisions_and_fills_on_insert_failure(
+    tmp_path,
+) -> None:
+    path = tmp_path / "ledger.sqlite3"
+    ledger = _SecondBatchFillFailureLedger(path)
+    ledger.initialize()
+    decisions = [
+        _approved_decision(side="buy", venue="kraken", price=Decimal("0.9995")),
+        _approved_decision(side="sell", venue="coinbase", price=Decimal("1.0002")),
+    ]
+
+    with pytest.raises(RuntimeError, match="simulated fill insert failure"):
+        ledger.record_paper_fills_for_decisions(
+            decisions=decisions,
+            fees=[Decimal("0.10"), Decimal("0.10")],
+        )
+
+    reader = Ledger(path)
+    assert reader.fetch_all("select * from risk_decisions") == []
+    assert reader.fetch_all("select * from paper_fills") == []
+
+
+def test_ledger_skips_batched_decisions_when_opportunity_already_has_fill(
+    tmp_path,
+) -> None:
+    path = tmp_path / "ledger.sqlite3"
+    ledger = Ledger(path)
+    ledger.initialize()
+    existing_decision_id = ledger.record_risk_decision(_approved_decision())
+    ledger.record_paper_fill(
+        risk_decision_id=existing_decision_id,
+        opportunity_id="opp-1",
+        venue="kraken",
+        symbol="USDC/USD",
+        side="buy",
+        size=Decimal("1000"),
+        price=Decimal("0.9995"),
+        fee=Decimal("0.10"),
+    )
+
+    fill_ids = ledger.record_paper_fills_for_decisions(
+        decisions=[
+            _approved_decision(side="buy", venue="kraken", price=Decimal("0.9995")),
+            _approved_decision(side="sell", venue="coinbase", price=Decimal("1.0002")),
+        ],
+        fees=[Decimal("0.10"), Decimal("0.10")],
+    )
+
+    assert fill_ids == []
+    assert len(ledger.fetch_all("select * from risk_decisions")) == 1
+    assert len(ledger.fetch_all("select * from paper_fills")) == 1
 
 
 def test_ledger_upgrades_empty_legacy_paper_fill_schema(tmp_path) -> None:

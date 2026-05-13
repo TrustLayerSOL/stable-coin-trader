@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from stable_coin_trader.models import RiskDecision, utc_now
+from stable_coin_trader.models import RiskDecision, decimal_key, parse_dt, utc_now
 
 
 class Ledger:
@@ -23,44 +24,78 @@ class Ledger:
         with self.connect() as conn:
             self._ensure_risk_decisions_schema(conn)
             self._ensure_paper_fills_schema(conn)
+            self._ensure_paper_fills_indexes(conn)
             self._ensure_foreign_keys_valid(conn)
 
-    def record_risk_decision(self, decision: RiskDecision) -> int:
+    def record_risk_decision(
+        self,
+        decision: RiskDecision,
+        created_at: datetime | None = None,
+    ) -> int:
         with self.connect() as conn:
-            cursor = conn.execute(
-                """
-                insert into risk_decisions (
-                    created_at,
-                    opportunity_id,
-                    venue,
-                    symbol,
-                    side,
-                    size,
-                    limit_price,
-                    approved,
-                    reason,
-                    min_edge_bps,
-                    requires_human_approval,
-                    active_signal_ids
-                )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    utc_now().isoformat(),
-                    decision.trade.opportunity_id,
-                    decision.trade.venue,
-                    decision.trade.symbol,
-                    decision.trade.side,
-                    str(decision.trade.size),
-                    str(decision.trade.limit_price),
-                    1 if decision.approved else 0,
-                    decision.reason,
-                    str(decision.min_edge_bps),
-                    1 if decision.requires_human_approval else 0,
-                    json.dumps(decision.active_signal_ids),
-                ),
+            return self._insert_risk_decision(conn, decision, created_at=created_at)
+
+    def has_paper_fill_for_opportunity(self, opportunity_id: str) -> bool:
+        with self.connect() as conn:
+            return self._has_paper_fill_for_opportunity_ids(conn, [opportunity_id])
+
+    def record_paper_fills_for_decisions(
+        self,
+        decisions: list[RiskDecision],
+        fees: list[Decimal],
+        created_at: datetime | None = None,
+    ) -> list[int]:
+        if len(decisions) != len(fees):
+            raise ValueError("decisions and fees must have the same length")
+        if not decisions:
+            return []
+
+        for decision, fee in zip(decisions, fees, strict=True):
+            if not decision.approved:
+                raise ValueError("paper fill decisions must be approved")
+            self._validate_paper_fill_numbers(
+                size=decision.trade.size,
+                price=decision.trade.limit_price,
+                fee=fee,
             )
-            return int(cursor.lastrowid)
+
+        conn = self.connect()
+        try:
+            conn.execute("begin immediate")
+            opportunity_ids = [decision.trade.opportunity_id for decision in decisions]
+            if self._has_paper_fill_for_opportunity_ids(conn, opportunity_ids):
+                conn.commit()
+                return []
+
+            fill_ids: list[int] = []
+            for decision, fee in zip(decisions, fees, strict=True):
+                risk_decision_id = self._insert_risk_decision(
+                    conn,
+                    decision,
+                    created_at=created_at,
+                )
+                trade = decision.trade
+                fill_ids.append(
+                    self._insert_paper_fill(
+                        conn=conn,
+                        risk_decision_id=risk_decision_id,
+                        opportunity_id=trade.opportunity_id,
+                        venue=trade.venue,
+                        symbol=trade.symbol,
+                        side=trade.side,
+                        size=trade.size,
+                        price=trade.limit_price,
+                        fee=fee,
+                        created_at=created_at,
+                    )
+                )
+            conn.commit()
+            return fill_ids
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def record_paper_fill(
         self,
@@ -72,12 +107,12 @@ class Ledger:
         size: Decimal,
         price: Decimal,
         fee: Decimal,
+        created_at: datetime | None = None,
     ) -> int:
-        self._validate_paper_fill_numbers(size=size, price=price, fee=fee)
         conn = self.connect()
         try:
             conn.execute("begin immediate")
-            self._validate_paper_fill_matches_decision(
+            fill_id = self._insert_paper_fill(
                 conn=conn,
                 risk_decision_id=risk_decision_id,
                 opportunity_id=opportunity_id,
@@ -86,35 +121,9 @@ class Ledger:
                 side=side,
                 size=size,
                 price=price,
+                fee=fee,
+                created_at=created_at,
             )
-            cursor = conn.execute(
-                """
-                insert into paper_fills (
-                    created_at,
-                    risk_decision_id,
-                    opportunity_id,
-                    venue,
-                    symbol,
-                    side,
-                    size,
-                    price,
-                    fee
-                )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    utc_now().isoformat(),
-                    risk_decision_id,
-                    opportunity_id,
-                    venue,
-                    symbol,
-                    side,
-                    str(size),
-                    str(price),
-                    str(fee),
-                ),
-            )
-            fill_id = int(cursor.lastrowid)
             conn.commit()
             return fill_id
         except Exception:
@@ -140,6 +149,124 @@ class Ledger:
     def _require_nonnegative_decimal(self, name: str, value: Decimal) -> None:
         if not value.is_finite() or value < 0:
             raise ValueError(f"paper fill {name} must be nonnegative and finite")
+
+    def _insert_risk_decision(
+        self,
+        conn: sqlite3.Connection,
+        decision: RiskDecision,
+        created_at: datetime | None = None,
+    ) -> int:
+        cursor = conn.execute(
+            """
+            insert into risk_decisions (
+                created_at,
+                opportunity_id,
+                venue,
+                symbol,
+                side,
+                size,
+                limit_price,
+                approved,
+                reason,
+                min_edge_bps,
+                requires_human_approval,
+                active_signal_ids
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self._created_at_value(created_at),
+                decision.trade.opportunity_id,
+                decision.trade.venue,
+                decision.trade.symbol,
+                decision.trade.side,
+                decimal_key(decision.trade.size),
+                decimal_key(decision.trade.limit_price),
+                1 if decision.approved else 0,
+                decision.reason,
+                decimal_key(decision.min_edge_bps),
+                1 if decision.requires_human_approval else 0,
+                json.dumps(decision.active_signal_ids),
+            ),
+        )
+        return int(cursor.lastrowid)
+
+    def _insert_paper_fill(
+        self,
+        conn: sqlite3.Connection,
+        risk_decision_id: int,
+        opportunity_id: str,
+        venue: str,
+        symbol: str,
+        side: str,
+        size: Decimal,
+        price: Decimal,
+        fee: Decimal,
+        created_at: datetime | None = None,
+    ) -> int:
+        self._validate_paper_fill_numbers(size=size, price=price, fee=fee)
+        self._validate_paper_fill_matches_decision(
+            conn=conn,
+            risk_decision_id=risk_decision_id,
+            opportunity_id=opportunity_id,
+            venue=venue,
+            symbol=symbol,
+            side=side,
+            size=size,
+            price=price,
+        )
+        cursor = conn.execute(
+            """
+            insert into paper_fills (
+                created_at,
+                risk_decision_id,
+                opportunity_id,
+                venue,
+                symbol,
+                side,
+                size,
+                price,
+                fee
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self._created_at_value(created_at),
+                risk_decision_id,
+                opportunity_id,
+                venue,
+                symbol,
+                side,
+                decimal_key(size),
+                decimal_key(price),
+                decimal_key(fee),
+            ),
+        )
+        return int(cursor.lastrowid)
+
+    def _created_at_value(self, created_at: datetime | None) -> str:
+        return parse_dt(created_at or utc_now()).isoformat()
+
+    def _has_paper_fill_for_opportunity_ids(
+        self,
+        conn: sqlite3.Connection,
+        opportunity_ids: list[str],
+    ) -> bool:
+        unique_ids = sorted(set(opportunity_ids))
+        if not unique_ids:
+            return False
+
+        placeholders = ", ".join("?" for _ in unique_ids)
+        row = conn.execute(
+            f"""
+            select 1
+            from paper_fills
+            where opportunity_id in ({placeholders})
+            limit 1
+            """,
+            unique_ids,
+        ).fetchone()
+        return row is not None
 
     def _ensure_risk_decisions_schema(self, conn: sqlite3.Connection) -> None:
         if not self._table_exists(conn, "risk_decisions"):
@@ -185,6 +312,21 @@ class Ledger:
 
         conn.execute("drop table paper_fills")
         self._create_paper_fills_table(conn)
+
+    def _ensure_paper_fills_indexes(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            create unique index if not exists idx_paper_fills_unique_leg
+            on paper_fills (
+                opportunity_id,
+                side,
+                venue,
+                symbol,
+                size,
+                price
+            )
+            """
+        )
 
     def _risk_decisions_schema_is_valid(self, conn: sqlite3.Connection) -> bool:
         expected_columns = {
@@ -280,7 +422,7 @@ class Ledger:
     def _create_risk_decisions_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
             """
-            create table risk_decisions (
+            create table if not exists risk_decisions (
                 id integer primary key autoincrement,
                 created_at text not null,
                 opportunity_id text not null,
@@ -301,7 +443,7 @@ class Ledger:
     def _create_paper_fills_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
             """
-            create table paper_fills (
+            create table if not exists paper_fills (
                 id integer primary key autoincrement,
                 created_at text not null,
                 risk_decision_id integer not null references risk_decisions(id),

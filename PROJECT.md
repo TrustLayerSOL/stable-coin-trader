@@ -8,7 +8,12 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: core skeleton implemented and deterministic paper loop runnable.
+Current phase: Task 10 / one-cycle paper engine hardening on branch
+`implementation/core-skeleton-paper-loop`.
+
+The near-term architecture remains phase 2 first: deterministic stablecoin
+spread paper trading, followed later by the phase 3 research/news layer after
+the core loop is proven.
 
 Completed:
 
@@ -21,6 +26,20 @@ Completed:
 - Created the first implementation plan: `docs/superpowers/plans/2026-05-13-core-skeleton-paper-loop.md`.
 - Implemented the Python package, safe config loader, domain models, SQLite ledger, fixture loaders, opportunity engine, risk engine, paper executor, one-cycle engine, and CLI.
 - Added deterministic fixture data and integration tests for the paper loop.
+
+Task 10 hardening completed:
+
+- Fail closed when existing ledger exposure cannot be read.
+- Reject future-dated and stale market data using the engine clock.
+- Load research signals using the engine clock.
+- Support configurable fee and slippage basis points.
+- Use `run_as_of` in the example config to replay fixtures deterministically.
+- Skip duplicate already-filled opportunities on repeated runs.
+- Allow the same prices to trade again at a new market observation time.
+- Ignore future-dated research signals.
+- Add atomic pair execution so both paper legs are recorded together or no fills are recorded.
+- Guard duplicate opportunity fills inside the ledger write transaction for overlapping runs.
+- Verified with the full automated test suite.
 
 Still not started:
 
@@ -100,9 +119,8 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Complete final verification of the deterministic paper loop.
-2. Push the implementation branch to GitHub.
-3. Add the first real exchange market-data adapter, likely Kraken or Coinbase.
-4. Keep execution in paper mode while validating spreads, stale-data handling, fees, and ledger behavior.
-5. Add exchange status and research-source ingestion.
-6. Run paper trading before any live trading.
+1. Push the implementation branch to GitHub.
+2. Add the first real exchange market-data adapter, likely Kraken or Coinbase.
+3. Keep execution in paper mode while validating spreads, stale-data handling, fees, and ledger behavior.
+4. Add exchange status and research-source ingestion.
+5. Run paper trading before any live trading.

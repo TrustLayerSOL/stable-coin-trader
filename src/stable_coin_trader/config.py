@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -14,6 +15,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from stable_coin_trader.models import parse_dt
 
 NonEmptyString = Annotated[
     str,
@@ -40,6 +43,7 @@ class BotConfig(BaseModel):
     min_edge_bps: Decimal = Field(ge=0)
     fee_bps: Decimal = Field(default=Decimal("1"), ge=0)
     slippage_bps: Decimal = Field(default=Decimal("0.5"), ge=0)
+    run_as_of: datetime | None = None
     stale_after_seconds: int = Field(gt=0, strict=True)
     depeg_threshold_bps: Decimal = Field(gt=0)
     daily_loss_limit_usd: Decimal = Field(gt=0)
@@ -61,6 +65,13 @@ class BotConfig(BaseModel):
             value = stripped
 
         return value
+
+    @field_validator("run_as_of", mode="before")
+    @classmethod
+    def parse_run_as_of(cls, value: datetime | str | None) -> datetime | None:
+        if value is None:
+            return None
+        return parse_dt(value)
 
     @model_validator(mode="after")
     def validate_model_constraints(self) -> "BotConfig":

@@ -18,6 +18,17 @@ def _trade() -> ProposedTrade:
     )
 
 
+def _sell_trade() -> ProposedTrade:
+    return ProposedTrade(
+        opportunity_id="opp-1",
+        side="sell",
+        venue="coinbase",
+        symbol="USDC/USD",
+        size=Decimal("1000"),
+        limit_price=Decimal("1.0002"),
+    )
+
+
 def _initialized_ledger(tmp_path) -> Ledger:
     ledger = Ledger(tmp_path / "paper.sqlite3")
     ledger.initialize()
@@ -99,6 +110,29 @@ def test_paper_executor_supports_zero_fees(tmp_path) -> None:
     fill_rows = ledger.fetch_all("select * from paper_fills")
     assert fill_id is not None
     assert Decimal(fill_rows[0]["fee"]) == Decimal("0")
+
+
+def test_paper_executor_executes_approved_batch_atomically(tmp_path) -> None:
+    ledger = _initialized_ledger(tmp_path)
+    executor = PaperExecutor(ledger=ledger, fee_bps=Decimal("1"))
+    decisions = [
+        RiskDecision.approve(
+            trade=_trade(),
+            reason="approved",
+            min_edge_bps=Decimal("2.5"),
+        ),
+        RiskDecision.approve(
+            trade=_sell_trade(),
+            reason="approved",
+            min_edge_bps=Decimal("2.5"),
+        ),
+    ]
+
+    fill_ids = executor.execute_many(decisions)
+
+    assert len(fill_ids) == 2
+    assert len(ledger.fetch_all("select * from risk_decisions")) == 2
+    assert len(ledger.fetch_all("select * from paper_fills")) == 2
 
 
 @pytest.mark.parametrize(

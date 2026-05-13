@@ -68,6 +68,28 @@ def test_load_active_research_signals_keeps_ttl_boundary_active(tmp_path) -> Non
     assert [signal.id for signal in active] == ["boundary"]
 
 
+def test_load_active_research_signals_filters_future_observed_signals(tmp_path) -> None:
+    path = tmp_path / "signals.json"
+    write_signals(
+        path,
+        [
+            signal_payload(id="active"),
+            signal_payload(
+                id="future",
+                observed_at="2026-05-13T12:00:01Z",
+                published_at="2026-05-13T12:00:00Z",
+            ),
+        ],
+    )
+
+    active = load_active_research_signals(
+        path,
+        now=datetime(2026, 5, 13, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert [signal.id for signal in active] == ["active"]
+
+
 def test_load_active_research_signals_uses_timezone_aware_expiration(tmp_path) -> None:
     path = tmp_path / "signals.json"
     write_signals(

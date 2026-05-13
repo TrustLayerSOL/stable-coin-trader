@@ -31,6 +31,13 @@ def parse_dt(value: datetime | str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def decimal_key(value: Decimal) -> str:
+    normalized = value.normalize()
+    if normalized == 0:
+        return "0"
+    return format(normalized, "f")
+
+
 class MarketSnapshot(BaseModel):
     venue: NonEmptyString
     symbol: NonEmptyString
@@ -150,7 +157,8 @@ class ResearchSignal(BaseModel):
         current = now or utc_now()
         current = parse_dt(current)
         age = current - self.observed_at
-        return age.total_seconds() > self.ttl_seconds
+        age_seconds = age.total_seconds()
+        return age_seconds < 0 or age_seconds > self.ttl_seconds
 
     @property
     def risk_score(self) -> Decimal:
