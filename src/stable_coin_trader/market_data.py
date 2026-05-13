@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from stable_coin_trader.models import parse_dt
 from stable_coin_trader.models import MarketSnapshot
 
 
@@ -65,3 +66,26 @@ def load_market_snapshots(
         for snapshot in snapshots
         if snapshot.symbol in symbol_set and snapshot.venue in venue_set
     ]
+
+
+def write_market_snapshots(path: str | Path, snapshots: list[MarketSnapshot]) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps([_snapshot_json(snapshot) for snapshot in snapshots], indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _snapshot_json(snapshot: MarketSnapshot) -> dict[str, str]:
+    observed_at = parse_dt(snapshot.observed_at).isoformat().replace("+00:00", "Z")
+    return {
+        "venue": snapshot.venue,
+        "symbol": snapshot.symbol,
+        "bid": str(snapshot.bid),
+        "ask": str(snapshot.ask),
+        "bid_size": str(snapshot.bid_size),
+        "ask_size": str(snapshot.ask_size),
+        "observed_at": observed_at,
+    }

@@ -84,6 +84,47 @@ def test_kraken_client_rejects_empty_order_book() -> None:
         client.fetch_order_book_snapshot(parse_pair_mapping("USDCUSD:USDC/USD"))
 
 
+def test_kraken_client_rejects_malformed_numeric_book_entry() -> None:
+    def fake_request(path: str, params: dict[str, str]) -> dict[str, object]:
+        return {
+            "error": [],
+            "result": {
+                "USDCUSD": {
+                    "asks": [["1.00010", "1234.5", 1778677201]],
+                    "bids": [["bad", "2345.6", 1778677200]],
+                }
+            },
+        }
+
+    client = KrakenPublicMarketDataClient(requester=fake_request)
+
+    with pytest.raises(ValueError, match="bid"):
+        client.fetch_order_book_snapshot(parse_pair_mapping("USDCUSD:USDC/USD"))
+
+
+def test_kraken_default_requester_decodes_json(monkeypatch) -> None:
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"error":[],"result":{}}'
+
+    def fake_urlopen(request, timeout):
+        return FakeResponse()
+
+    monkeypatch.setattr("stable_coin_trader.kraken.urlopen", fake_urlopen)
+    client = KrakenPublicMarketDataClient()
+
+    assert client._request_json("/0/public/Depth", {"pair": "USDCUSD"}) == {
+        "error": [],
+        "result": {},
+    }
+
+
 def test_write_market_snapshots_writes_fixture_shaped_json(tmp_path) -> None:
     observed_at = datetime(2026, 5, 13, 13, 5, tzinfo=timezone.utc)
     client = KrakenPublicMarketDataClient(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -10,7 +11,6 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from stable_coin_trader.market_data import write_market_snapshots
 from stable_coin_trader.models import MarketSnapshot, parse_dt
 
 JsonRequester = Callable[[str, dict[str, str]], Mapping[str, Any]]
@@ -18,23 +18,28 @@ Clock = Callable[[], datetime]
 
 
 @dataclass(frozen=True)
-class KrakenPairMapping:
-    kraken_pair: str
+class CoinbaseProductMapping:
+    product_id: str
     symbol: str
 
 
-def parse_pair_mapping(raw: str) -> KrakenPairMapping:
+def parse_product_mapping(raw: str) -> CoinbaseProductMapping:
     parts = [part.strip() for part in raw.split(":", maxsplit=1)]
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-        raise ValueError("pair mapping must use KRAKEN_PAIR:BOT_SYMBOL")
+    if (
+        len(parts) != 2
+        or not parts[0]
+        or not parts[1]
+        or not re.fullmatch(r"[A-Z0-9]+-[A-Z0-9]+", parts[0])
+    ):
+        raise ValueError("product mapping must use COINBASE_PRODUCT:BOT_SYMBOL")
 
-    return KrakenPairMapping(kraken_pair=parts[0], symbol=parts[1])
+    return CoinbaseProductMapping(product_id=parts[0], symbol=parts[1])
 
 
-class KrakenPublicMarketDataClient:
+class CoinbasePublicMarketDataClient:
     def __init__(
         self,
-        base_url: str = "https://api.kraken.com",
+        base_url: str = "https://api.exchange.coinbase.com",
         timeout_seconds: float = 10,
         requester: JsonRequester | None = None,
         clock: Clock | None = None,
@@ -46,28 +51,19 @@ class KrakenPublicMarketDataClient:
 
     def fetch_order_book_snapshot(
         self,
-        mapping: KrakenPairMapping,
-        count: int = 1,
+        mapping: CoinbaseProductMapping,
     ) -> MarketSnapshot:
-        if count <= 0:
-            raise ValueError("Kraken order book count must be positive")
-
         payload = self._requester(
-            "/0/public/Depth",
-            {"pair": mapping.kraken_pair, "count": str(count)},
+            f"/products/{mapping.product_id}/book",
+            {"level": "1"},
         )
-        errors = payload.get("error")
-        if errors:
-            raise ValueError(f"Kraken API error: {', '.join(str(error) for error in errors)}")
-
-        book = _extract_single_order_book(payload)
-        asks = _require_book_side(book, "asks")
-        bids = _require_book_side(book, "bids")
+        asks = _require_book_side(payload, "asks")
+        bids = _require_book_side(payload, "bids")
         best_ask = _parse_book_entry(asks[0], "ask")
         best_bid = _parse_book_entry(bids[0], "bid")
 
         return MarketSnapshot(
-            venue="kraken",
+            venue="coinbase",
             symbol=mapping.symbol,
             bid=best_bid.price,
             ask=best_ask.price,
@@ -87,15 +83,15 @@ class KrakenPublicMarketDataClient:
             with urlopen(request, timeout=self.timeout_seconds) as response:
                 raw_body = response.read().decode("utf-8")
         except (HTTPError, URLError) as exc:
-            raise ConnectionError(f"Kraken public request failed: {exc}") from exc
+            raise ConnectionError(f"Coinbase public request failed: {exc}") from exc
 
         try:
             payload = json.loads(raw_body)
         except json.JSONDecodeError as exc:
-            raise ValueError("Kraken response was not valid JSON") from exc
+            raise ValueError("Coinbase response was not valid JSON") from exc
 
         if not isinstance(payload, Mapping):
-            raise ValueError("Kraken response must be a JSON object")
+            raise ValueError("Coinbase response must be a JSON object")
         return payload
 
 
@@ -103,28 +99,14 @@ class KrakenPublicMarketDataClient:
 class _BookEntry:
     price: Decimal
     size: Decimal
-    observed_at: datetime
-
-
-def _extract_single_order_book(payload: Mapping[str, Any]) -> Mapping[str, Any]:
-    result = payload.get("result")
-    if not isinstance(result, Mapping) or not result:
-        raise ValueError("Kraken order book response missing result")
-    if len(result) != 1:
-        raise ValueError("Kraken order book response must contain one pair result")
-
-    book = next(iter(result.values()))
-    if not isinstance(book, Mapping):
-        raise ValueError("Kraken order book result must be an object")
-    return book
 
 
 def _require_book_side(book: Mapping[str, Any], side: str) -> Sequence[Any]:
     values = book.get(side)
     if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
-        raise ValueError(f"Kraken order book missing {side}")
+        raise ValueError(f"Coinbase order book missing {side}")
     if not values:
-        raise ValueError(f"Kraken order book {side} is empty")
+        raise ValueError(f"Coinbase order book {side} is empty")
     return values
 
 
@@ -132,15 +114,14 @@ def _parse_book_entry(entry: Any, side: str) -> _BookEntry:
     if (
         not isinstance(entry, Sequence)
         or isinstance(entry, (str, bytes))
-        or len(entry) < 3
+        or len(entry) < 2
     ):
-        raise ValueError(f"Kraken {side} order book entry is invalid")
+        raise ValueError(f"Coinbase {side} order book entry is invalid")
 
     try:
         price = Decimal(str(entry[0]))
         size = Decimal(str(entry[1]))
-        observed_at = datetime.fromtimestamp(float(entry[2]), timezone.utc)
     except (InvalidOperation, ValueError, TypeError) as exc:
-        raise ValueError(f"Kraken {side} order book entry is invalid") from exc
+        raise ValueError(f"Coinbase {side} order book entry is invalid") from exc
 
-    return _BookEntry(price=price, size=size, observed_at=observed_at)
+    return _BookEntry(price=price, size=size)
