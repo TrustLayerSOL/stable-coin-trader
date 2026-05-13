@@ -123,6 +123,35 @@ def test_find_spread_opportunities_caps_size_by_available_depth() -> None:
     assert opportunities[0].gross_profit == Decimal("0.0800")
 
 
+def test_find_spread_opportunities_caps_size_by_sell_side_depth() -> None:
+    snapshots = [
+        make_snapshot(
+            venue="coinbase",
+            bid="1.0000",
+            ask="1.0002",
+            bid_size="150",
+            ask_size="50000",
+        ),
+        make_snapshot(
+            venue="kraken",
+            bid="0.9994",
+            ask="0.9996",
+            bid_size="50000",
+            ask_size="500",
+        ),
+    ]
+
+    opportunities = find_spread_opportunities(
+        snapshots=snapshots,
+        size=Decimal("1000"),
+        fee_bps=Decimal("0"),
+        slippage_bps=Decimal("0"),
+    )
+
+    assert len(opportunities) == 1
+    assert opportunities[0].size == Decimal("150")
+
+
 def test_find_spread_opportunities_ignores_unprofitable_spreads() -> None:
     snapshots = [
         make_snapshot(venue="coinbase", bid="1.0000", ask="1.0002"),
@@ -155,9 +184,9 @@ def test_find_spread_opportunities_subtracts_fee_and_slippage_costs() -> None:
     assert len(opportunities) == 1
     opportunity = opportunities[0]
     assert opportunity.estimated_fees == Decimal("0.19996")
-    assert opportunity.estimated_slippage == Decimal("0.04998")
+    assert opportunity.estimated_slippage == Decimal("0.09998")
     assert opportunity.gross_profit == Decimal("0.4000")
-    assert opportunity.net_profit == Decimal("0.15006")
+    assert opportunity.net_profit == Decimal("0.10006")
 
 
 @pytest.mark.parametrize(
@@ -165,8 +194,17 @@ def test_find_spread_opportunities_subtracts_fee_and_slippage_costs() -> None:
     [
         (Decimal("0"), Decimal("0"), Decimal("0")),
         (Decimal("-1"), Decimal("0"), Decimal("0")),
+        (Decimal("NaN"), Decimal("0"), Decimal("0")),
+        (Decimal("Infinity"), Decimal("0"), Decimal("0")),
+        (Decimal("-Infinity"), Decimal("0"), Decimal("0")),
         (Decimal("1000"), Decimal("-0.01"), Decimal("0")),
+        (Decimal("1000"), Decimal("NaN"), Decimal("0")),
+        (Decimal("1000"), Decimal("Infinity"), Decimal("0")),
+        (Decimal("1000"), Decimal("-Infinity"), Decimal("0")),
         (Decimal("1000"), Decimal("0"), Decimal("-0.01")),
+        (Decimal("1000"), Decimal("0"), Decimal("NaN")),
+        (Decimal("1000"), Decimal("0"), Decimal("Infinity")),
+        (Decimal("1000"), Decimal("0"), Decimal("-Infinity")),
     ],
 )
 def test_find_spread_opportunities_rejects_invalid_numeric_inputs(

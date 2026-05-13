@@ -59,7 +59,10 @@ def find_spread_opportunities(
                     buy_price=buy.ask,
                     sell_price=sell.bid,
                     estimated_fees=bps_cost(buy_notional + sell_notional, fee_bps),
-                    estimated_slippage=bps_cost(buy_notional, slippage_bps),
+                    estimated_slippage=bps_cost(
+                        buy_notional + sell_notional,
+                        slippage_bps,
+                    ),
                     observed_at=max(buy.observed_at, sell.observed_at),
                 )
                 if opportunity.net_profit > 0:
