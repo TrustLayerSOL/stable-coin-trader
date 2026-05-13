@@ -238,6 +238,7 @@ def _handler_factory(
             encoded = body.encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)
@@ -262,18 +263,18 @@ _DASHBOARD_HTML = """<!doctype html>
   <title>Stablecoin Spread Observer</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #0b0d10;
-      --panel: #11161d;
-      --panel-2: #171d26;
-      --line: #2a3340;
-      --text: #eef3fb;
-      --muted: #9ba8ba;
-      --accent: #2dd4bf;
-      --amber: #f5b84b;
-      --red: #f87171;
-      --green: #7ddc93;
-      --blue: #8ab4ff;
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel-2: #edf3f9;
+      --line: #d6e0ea;
+      --text: #172033;
+      --muted: #607086;
+      --accent: #0fbaa8;
+      --amber: #c98516;
+      --red: #c43f4a;
+      --green: #137a46;
+      --blue: #2f6fd6;
     }
     * { box-sizing: border-box; }
     body {
@@ -290,7 +291,7 @@ _DASHBOARD_HTML = """<!doctype html>
       gap: 20px;
       padding: 18px 24px;
       border-bottom: 1px solid var(--line);
-      background: #0e1218;
+      background: #ffffff;
       position: sticky;
       top: 0;
       z-index: 10;
@@ -306,7 +307,7 @@ _DASHBOARD_HTML = """<!doctype html>
       height: 34px;
       border-radius: 8px;
       background:
-        linear-gradient(135deg, var(--accent), var(--blue) 60%, var(--amber));
+        linear-gradient(135deg, #29d4bf, var(--blue) 62%, #f6c15c);
     }
     h1 {
       margin: 0;
@@ -333,7 +334,7 @@ _DASHBOARD_HTML = """<!doctype html>
       height: 9px;
       border-radius: 999px;
       background: var(--amber);
-      box-shadow: 0 0 14px color-mix(in srgb, var(--amber), transparent 20%);
+      box-shadow: 0 0 12px color-mix(in srgb, var(--amber), transparent 35%);
     }
     main {
       width: min(1440px, 100%);
@@ -404,7 +405,7 @@ _DASHBOARD_HTML = """<!doctype html>
       width: 100%;
       height: 260px;
       display: block;
-      background: #0d1117;
+      background: #f8fbff;
     }
     table {
       width: 100%;
@@ -426,7 +427,7 @@ _DASHBOARD_HTML = """<!doctype html>
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: .04em;
-      background: #0f141b;
+      background: #f4f8fc;
     }
     .log {
       margin: 0;
@@ -434,8 +435,8 @@ _DASHBOARD_HTML = """<!doctype html>
       min-height: 240px;
       max-height: 360px;
       overflow: auto;
-      color: #cbd5e1;
-      background: #080b10;
+      color: #263447;
+      background: #f8fbff;
       font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       white-space: pre-wrap;
     }
@@ -567,9 +568,9 @@ _DASHBOARD_HTML = """<!doctype html>
       const width = canvas.width;
       const height = canvas.height;
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = "#0d1117";
+      ctx.fillStyle = "#f8fbff";
       ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = "#253041";
+      ctx.strokeStyle = "#d6e0ea";
       ctx.lineWidth = 1;
       for (let i = 1; i < 5; i++) {
         const y = (height / 5) * i;
@@ -585,7 +586,7 @@ _DASHBOARD_HTML = """<!doctype html>
       const span = max - min || 1;
       const yFor = (value) => height - ((value - min) / span) * (height - 28) - 14;
       const zeroY = yFor(0);
-      ctx.strokeStyle = "#f87171";
+      ctx.strokeStyle = "#c43f4a";
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       ctx.moveTo(0, zeroY);
@@ -596,7 +597,7 @@ _DASHBOARD_HTML = """<!doctype html>
       values.forEach((value, index) => {
         const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * (width - 36) + 18;
         const y = yFor(value);
-        ctx.strokeStyle = value >= 0 ? "#7ddc93" : "#f5b84b";
+        ctx.strokeStyle = value >= 0 ? "#137a46" : "#c98516";
         ctx.beginPath();
         ctx.arc(x, y, 3, 0, Math.PI * 2);
         ctx.stroke();
