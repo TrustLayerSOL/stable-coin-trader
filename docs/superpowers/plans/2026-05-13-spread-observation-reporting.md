@@ -113,4 +113,4 @@ Expected result: all focused tests pass.
 - [x] Run a real public snapshot fetch, `observe-spreads`, and `report-spreads`
   against ignored `runtime/` files.
 - [x] Run a committed-file secret scan.
-- [ ] Commit, push, and open a draft PR stacked on `feature/coinbase-public-market-data`.
+- [x] Commit, push, and open a draft PR stacked on `feature/coinbase-public-market-data`.

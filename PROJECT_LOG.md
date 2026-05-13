@@ -118,3 +118,4 @@
 - Added `stable-coin-trader observe-spreads` and `stable-coin-trader report-spreads`.
 - Verification completed: full automated test suite passed with 324 tests, whitespace check passed, committed-file secret scan passed, and a live public Kraken/Coinbase snapshot -> observe -> report smoke test completed.
 - The live smoke report recorded 2 observations and 0 profitable routes after configured slippage, demonstrating that the measurement layer can produce a no-trade signal.
+- Opened draft PR #4: `https://github.com/TrustLayerSOL/stable-coin-trader/pull/4`.

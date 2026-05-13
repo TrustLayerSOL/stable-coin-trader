@@ -8,9 +8,9 @@ The bot should make money from execution-driven opportunities such as stablecoin
 
 ## Current Status
 
-Current phase: spread observation reporting on branch
-`feature/spread-observation-reporting`, stacked on the Coinbase public
-market-data branch.
+Current phase: spread observation reporting completed on branch
+`feature/spread-observation-reporting`; draft PR #4 is open against
+`feature/coinbase-public-market-data`.
 
 The near-term architecture remains phase 2 first: deterministic stablecoin
 spread paper trading, followed later by the phase 3 research/news layer after
@@ -31,6 +31,7 @@ Completed:
 - Opened draft PR #2 for the Kraken public market-data adapter.
 - Opened draft PR #3 for the Coinbase public market-data adapter.
 - Started the spread observation reporting layer.
+- Opened draft PR #4 for spread observation reporting.
 
 Task 10 hardening completed:
 
@@ -60,7 +61,7 @@ Coinbase public market-data adapter completed:
 - Adds a combined CLI command that writes Kraken and Coinbase snapshots into one JSON file.
 - Does not use Coinbase private API keys, balances, orders, or account endpoints.
 
-Spread observation reporting in progress:
+Spread observation reporting completed:
 
 - Builds directional spread observations from public snapshot files.
 - Records profitable and unprofitable routes so the project can measure edge quality over time.
@@ -155,8 +156,8 @@ Approach 3 comes later:
 
 ## Next Steps
 
-1. Verify and publish the spread observation reporting branch.
-2. Merge the stacked PRs in order: core skeleton, Kraken public market data, Coinbase public market data, then spread observation reporting.
-3. Run repeated public Kraken/Coinbase spread observations before any live trading.
-4. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
-5. Add exchange status and research-source ingestion after measurement is running.
+1. Merge the stacked PRs in order: core skeleton, Kraken public market data, Coinbase public market data, then spread observation reporting.
+2. Run repeated public Kraken/Coinbase spread observations before any live trading.
+3. Feed measured observations into paper trading with realistic fees, slippage, and stale-data controls.
+4. Add exchange status and research-source ingestion after measurement is running.
+5. Only consider tiny live execution after observations and paper trading show a repeatable net edge after costs.
